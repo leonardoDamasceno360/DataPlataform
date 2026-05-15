@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 class Periodicos:
 
     def process(self, df):
@@ -27,5 +30,8 @@ class Periodicos:
             "DATE EXPIRATION ASO",
             "STATUS ASO"
         ]
+
+        # Histórico mensal
+        result["Report Month"] = datetime.today().strftime("%Y-%m")
 
         return result

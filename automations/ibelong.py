@@ -1,5 +1,6 @@
 import pandas as pd
 import unicodedata
+from datetime import datetime
 
 
 class IBelong:
@@ -48,104 +49,204 @@ class IBelong:
 
         raw = df.copy()
 
-        # -------------------------
-        # DETECTAR HEADER
-        # -------------------------
+        # =====================================================
+        # DETECÇÃO DINÂMICA DO HEADER
+        # =====================================================
         header_idx = None
 
         for i in range(len(raw)):
+
             row = raw.iloc[i].astype(str).str.lower()
-            if row.str.contains("new joinee emp id", na=False).any():
+
+            if row.str.contains(
+                "new joinee emp id",
+                na=False
+            ).any():
+
                 header_idx = i
                 break
 
         if header_idx is None:
-            raise ValueError("Header não encontrado")
 
-        # -------------------------
-        # RECONSTRUIR DATAFRAME
-        # -------------------------
-        header = raw.iloc[header_idx].astype(str).str.replace("\n", " ").str.strip()
-
-        df = raw.iloc[header_idx + 1:].reset_index(drop=True)
-        df.columns = header
-
-        df.columns = df.columns.astype(str).str.strip()
-        df = df.loc[:, ~df.columns.str.contains("^Unnamed", na=False)]
-
-        # -------------------------
-        # NORMALIZAÇÃO
-        # -------------------------
-        normalized_map = {
-            self._normalize(col): col for col in df.columns
-        }
-
-        # -------------------------
-        # CRIA FINAL_DF (ANTES DE USAR)
-        # -------------------------
-        final_df = pd.DataFrame(index=df.index)
-
-        # -------------------------
-        # MATCH DE COLUNAS
-        # -------------------------
-        for target in self.TARGET_COLUMNS:
-            target_norm = self._normalize(target)
-
-            matched_col = self._match_column(target_norm, normalized_map)
-
-            final_df[target] = df[matched_col] if matched_col else pd.NA
-
-        # -------------------------
-        # LIMPEZA FINAL
-        # -------------------------
-        if "New Joinee emp id" in final_df.columns:
-            final_df["New Joinee emp id"] = (
-                final_df["New Joinee emp id"]
-                .astype(str)
-                .str.strip()
+            raise ValueError(
+                "Header da base iBelong não encontrado."
             )
 
-            # remove linhas inválidas
-            final_df = final_df[
-                final_df["New Joinee emp id"].str.match(r"^\d+$", na=False)
-            ]
+        # =====================================================
+        # RECONSTRUÇÃO DO DATAFRAME
+        # =====================================================
+        header = (
+            raw.iloc[header_idx]
+            .astype(str)
+            .str.replace("\n", " ")
+            .str.strip()
+        )
+
+        df = (
+            raw.iloc[header_idx + 1:]
+            .reset_index(drop=True)
+        )
+
+        df.columns = header
+
+        # =====================================================
+        # LIMPEZA DE COLUNAS
+        # =====================================================
+        df.columns = (
+            df.columns
+            .astype(str)
+            .str.strip()
+        )
+
+        df = df.loc[
+            :,
+            ~df.columns.str.contains("^Unnamed", na=False)
+        ]
+
+        # remove colunas duplicadas
+        df = df.loc[:, ~df.columns.duplicated()]
+
+        # =====================================================
+        # NORMALIZAÇÃO
+        # =====================================================
+        normalized_map = {
+            self._normalize(col): col
+            for col in df.columns
+        }
+
+        # =====================================================
+        # DATAFRAME FINAL
+        # =====================================================
+        final_df = pd.DataFrame(index=df.index)
+
+        # =====================================================
+        # MATCH FLEXÍVEL DE COLUNAS
+        # =====================================================
+        for target in self.TARGET_COLUMNS:
+
+            target_norm = self._normalize(target)
+
+            matched_col = self._match_column(
+                target_norm,
+                normalized_map
+            )
+
+            if matched_col:
+                final_df[target] = df[matched_col]
+            else:
+                final_df[target] = pd.NA
+
+        # =====================================================
+        # LIMPEZA DO ID
+        # =====================================================
+        if "New Joinee emp id" not in final_df.columns:
+
+            raise ValueError(
+                "Coluna 'New Joinee emp id' não encontrada."
+            )
+
+        final_df["New Joinee emp id"] = (
+            final_df["New Joinee emp id"]
+            .astype(str)
+            .str.strip()
+        )
+
+        # remove linhas inválidas
+        final_df = final_df[
+            final_df["New Joinee emp id"].str.match(
+                r"^\d+$",
+                na=False
+            )
+        ]
+
+        # remove duplicados
+        final_df = final_df.drop_duplicates(
+            subset=["New Joinee emp id"]
+        )
+
+        # remove linhas completamente vazias
+        final_df = final_df.dropna(
+            how="all"
+        )
 
         final_df = final_df.reset_index(drop=True)
 
-        return self._convert_types(final_df)
+        # =====================================================
+        # HISTÓRICO MENSAL
+        # =====================================================
+        final_df["Report Month"] = (
+            datetime.today().strftime("%Y-%m")
+        )
 
-    # -------------------------
+        # =====================================================
+        # CONVERSÃO DE TIPOS
+        # =====================================================
+        final_df = self._convert_types(final_df)
+
+        return final_df
+
+    # =====================================================
     # HELPERS
-    # -------------------------
+    # =====================================================
 
     def _normalize(self, text):
-        text = unicodedata.normalize("NFKD", str(text).lower().strip())
-        return "".join(c for c in text if not unicodedata.combining(c))
 
-    def _match_column(self, target_norm, normalized_map):
+        text = unicodedata.normalize(
+            "NFKD",
+            str(text).lower().strip()
+        )
+
+        return "".join(
+            c for c in text
+            if not unicodedata.combining(c)
+        )
+
+    def _match_column(
+        self,
+        target_norm,
+        normalized_map
+    ):
+
+        # match exato primeiro
+        if target_norm in normalized_map:
+            return normalized_map[target_norm]
 
         best_match = None
         best_score = 0
 
+        target_words = set(target_norm.split())
+
         for norm, original in normalized_map.items():
 
-            target_words = set(target_norm.split())
             norm_words = set(norm.split())
 
-            score = len(target_words & norm_words)
+            score = len(
+                target_words & norm_words
+            )
 
             if score > best_score:
                 best_score = score
                 best_match = original
 
+        # threshold mínimo
         return best_match if best_score >= 3 else None
 
     def _convert_types(self, df):
 
-        for col in df.columns:
-            col_lower = col.lower()
+        numeric_columns = [
+            col for col in df.columns
+            if (
+                "asi" in col.lower()
+                or
+                "compliance" in col.lower()
+            )
+        ]
 
-            if "asi" in col_lower or "compliance" in col_lower:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        for col in numeric_columns:
+
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            )
 
         return df

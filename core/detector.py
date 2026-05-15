@@ -1,38 +1,103 @@
-def detect_automation(df, file_name=None):
-    file_name = (file_name or "").lower()
+import unicodedata
+def normalize_text(text):
 
-    # 1) Nome do arquivo (mais confiável)
-    if "ibelong" in file_name:
-        return "IBelong"
-    if "xcelerate" in file_name:
-        return "Xcelerate"
-    if "gems" in file_name:
-        return "Gems"
-    if "period" in file_name or "periód" in file_name:
-        return "Periódicos"
+    text = unicodedata.normalize(
+        "NFKD",
+        str(text).lower()
+    )
+
+    return "".join(
+        c for c in text
+        if not unicodedata.combining(c)
+    )
+def detect_automation(df, file_name=""):
+
+    file_name = normalize_text(file_name)
+
+    # =====================================================
+    # EXISTENTES
+    # =====================================================
+
     if "speed" in file_name:
         return "Speed"
 
-    # 2) Fallback por colunas
-    cols = [str(c).lower() for c in df.columns]
-
-    if "date expiration aso" in cols:
-        return "Periódicos"
-
-    if "employee number" in cols and "compliance" in cols:
-        return "Speed"
-
-    if "nomeador" in cols:
+    if "gems" in file_name:
         return "Gems"
 
-    if "competency match %" in cols:
-        return "Xcelerate"
+    if "xcelerate" in file_name:
+        return "XCelerate"
 
-    # 3) Fallback por conteúdo (IBelong header deslocado)
-    preview = df.head(20).astype(str)
-    text_blob = " ".join(map(str, preview.values.flatten())).lower()
+    if "period" in file_name:
+        return "Periódicos"
 
-    if "new joiner feedback compliance report" in text_blob:
+    if "ibelong" in file_name:
         return "IBelong"
+
+    # =====================================================
+    # NOVAS AUTOMAÇÕES
+    # =====================================================
+
+    # OT
+    if (
+        "ot" in file_name
+        or
+        "overtime" in file_name
+    ):
+        return "OT"
+    
+    
+
+    # RP
+    
+    if (
+        "inter" in file_name
+        or
+        "interjornada" in file_name
+        or
+        "rp" in file_name
+    ):
+        return "Rest Period"
+    
+    # Documentos
+    if (
+        "ass" in file_name
+        or
+        "document" in file_name
+    ):
+        return "Documentos"
+
+    # QG
+    if (
+        "qg" in file_name
+        or
+        "quadro" in file_name
+    ):
+        return "Quadro Geral"
+
+    # Separation Forms
+    if (
+        "separation" in file_name
+    ):
+        return "Separation Forms"
+
+    # Ult Mov Sal
+    if (
+        "ultima" in file_name
+        or
+        "mov" in file_name
+        or
+        "sal" in file_name
+    ):
+        return "Ult Mov Sal"
+
+    # Desligados
+    if (
+        "deslig" in file_name
+        or
+        "demit" in file_name
+        or
+        "colaborador" in file_name
+    ):
+        return "Desligados Geral"
 
     return None
