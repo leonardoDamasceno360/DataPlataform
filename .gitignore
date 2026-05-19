@@ -7,3 +7,8 @@ __pycache__/
 *.xlsx
 *.xlsb
 .DS_Store
+build/
+dist/
+*.spec
+*.log
+!packaging/pyinstaller/DataPlatform.spec
