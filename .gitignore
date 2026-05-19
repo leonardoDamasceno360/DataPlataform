@@ -1,14 +1,41 @@
-venv/
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.env
-*.xlsx
-*.xlsb
-.DS_Store
+
+# Virtual Environment
+venv/
+.venv/
+
+# Build
 build/
 dist/
-*.spec
+
+# Streamlit cache
+.streamlit/cache/
+
+# Logs
 *.log
-!packaging/pyinstaller/DataPlatform.spec
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# PyInstaller
+*.spec.old
+
+# Temporary
+temp/
+tmp/
+
+# Outputs
+outputs/
+history/
+
+# Jupyter
+.ipynb_checkpoints/
