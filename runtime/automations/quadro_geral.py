@@ -27,9 +27,25 @@ class QuadroGeral:
             list(df.columns[75:77])
         )
 
+        # =========================================================
+        # COLUNAS PROTEGIDAS
+        # =========================================================
+        colunas_protegidas = [
+            "Sexo",
+            "É PCD?",
+            "Tipo de Deficiência"
+        ]
+
+        colunas_remover = [
+            col
+            for col in colunas_remover
+            if col not in colunas_protegidas
+        ]
+
         df = df.drop(
             colunas_remover,
-            axis=1
+            axis=1,
+            errors="ignore"
         )
 
         if "Segment HEAD" in df.columns:
