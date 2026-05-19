@@ -1,41 +1,25 @@
 # Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
 
-# Virtual Environment
-venv/
+# Virtual env
 .venv/
+runtime/.venv/
 
 # Build
-build/
 dist/
+build/
 
 # Streamlit cache
-.streamlit/cache/
+.streamlit/
 
-# Logs
-*.log
-
-# OS
-.DS_Store
-Thumbs.db
+# PyInstaller
+*.spec
 
 # IDE
 .vscode/
 .idea/
 
-# PyInstaller
-*.spec.old
-
-# Temporary
-temp/
-tmp/
-
-# Outputs
-outputs/
-history/
-
-# Jupyter
-.ipynb_checkpoints/
+# OS
+.DS_Store
+Thumbs.db
