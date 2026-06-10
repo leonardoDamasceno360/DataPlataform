@@ -1,19 +1,15 @@
-from datetime import datetime
-
-from runtime.core.schema_utils import find_column
+from runtime.core.schema_utils import (
+    current_report_month,
+    select_and_rename_columns,
+)
 
 
 class Periodicos:
-    def process(self, df):
-        df = df.copy()
-        df.columns = df.columns.astype(str).str.strip()
 
-        id_col = find_column(
-            df,
-            ["id", "employee id", "associate id", "matricula"],
-        )
-        date_col = find_column(
-            df,
+    COLUMN_SPECS = [
+        ("ID", ["id", "employee id", "associate id", "matricula"]),
+        (
+            "DATE EXPIRATION ASO",
             [
                 "date expiration aso",
                 "expiration",
@@ -21,10 +17,15 @@ class Periodicos:
                 "validity",
                 "due date",
             ],
-        )
-        status_col = find_column(df, ["status aso", "status"])
+        ),
+        ("STATUS ASO", ["status aso", "status"]),
+    ]
 
-        result = df[[id_col, date_col, status_col]].copy()
-        result.columns = ["ID", "DATE EXPIRATION ASO", "STATUS ASO"]
-        result["Report Month"] = datetime.today().strftime("%Y-%m")
+    def process(self, df):
+
+        result = select_and_rename_columns(
+            df,
+            self.COLUMN_SPECS,
+        )
+        result["Report Month"] = current_report_month()
         return result

@@ -1,27 +1,16 @@
-from runtime.core.schema_utils import find_column
+from runtime.core.schema_utils import select_and_rename_columns
+
 
 class UltMovSal:
 
+    COLUMN_SPECS = [
+        ("ID", ["ID"]),
+        ("EFECTIVE DATE", ["EFECTIVE DATE", "Effective Date"]),
+    ]
+
     def process(self, df):
 
-        id_col = find_column(
+        return select_and_rename_columns(
             df,
-            [
-                "ID"
-            ]
+            self.COLUMN_SPECS,
         )
-
-        date_col = find_column(
-            df,
-            [
-                "EFECTIVE DATE",
-                "Effective Date"
-            ]
-        )
-
-        return df[[
-
-            id_col,
-
-            date_col
-        ]]

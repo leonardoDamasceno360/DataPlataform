@@ -1,39 +1,17 @@
-from runtime.core.schema_utils import find_column
+from runtime.core.schema_utils import select_and_rename_columns
 
 
 class SeparationForms:
 
+    COLUMN_SPECS = [
+        ("ID", ["ID", "\nID"]),
+        ("Separation type", ["Separation type", "\nSeparation type"]),
+        ("HR Remarks", ["HR Remarks", "\nHR Remarks"]),
+    ]
+
     def process(self, df):
 
-        id_col = find_column(
+        return select_and_rename_columns(
             df,
-            [
-                "ID",
-                "\nID"
-            ]
+            self.COLUMN_SPECS,
         )
-
-        type_col = find_column(
-            df,
-            [
-                "Separation type",
-                "\nSeparation type"
-            ]
-        )
-
-        remarks_col = find_column(
-            df,
-            [
-                "HR Remarks",
-                "\nHR Remarks"
-            ]
-        )
-
-        return df[[
-
-            id_col,
-
-            type_col,
-
-            remarks_col
-        ]]

@@ -1,40 +1,23 @@
-from runtime.core.schema_utils import find_column
+from runtime.core.schema_utils import select_and_rename_columns
 
 
 class RP:
 
+    COLUMN_SPECS = [
+        ("Id Contratado", ["Id Contratado", "ID", "Employee ID"]),
+        (
+            "Data do Dia (Data/Hora)",
+            ["Data do Dia (Data/Hora)", "Date"],
+        ),
+        (
+            "Interjornada Praticada",
+            ["Interjornada Praticada", "Rest Period Hours"],
+        ),
+    ]
+
     def process(self, df):
 
-        id_col = find_column(
+        return select_and_rename_columns(
             df,
-            [
-                "Id Contratado",
-                "ID",
-                "Employee ID"
-            ]
+            self.COLUMN_SPECS,
         )
-
-        date_col = find_column(
-            df,
-            [
-                "Data do Dia (Data/Hora)",
-                "Date"
-            ]
-        )
-
-        rest_col = find_column(
-            df,
-            [
-                "Interjornada Praticada",
-                "Rest Period Hours"
-            ]
-        )
-
-        return df[[
-
-            id_col,
-
-            date_col,
-
-            rest_col
-        ]]

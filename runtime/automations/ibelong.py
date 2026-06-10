@@ -1,6 +1,6 @@
 import pandas as pd
 import unicodedata
-from datetime import datetime
+from runtime.core.schema_utils import current_report_month
 
 
 class IBelong:
@@ -174,9 +174,7 @@ class IBelong:
         # =====================================================
         # HISTÓRICO MENSAL
         # =====================================================
-        final_df["Report Month"] = (
-            datetime.today().strftime("%Y-%m")
-        )
+        final_df["Report Month"] = current_report_month()
 
         # =====================================================
         # CONVERSÃO DE TIPOS

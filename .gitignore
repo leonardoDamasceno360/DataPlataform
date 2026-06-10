@@ -10,6 +10,11 @@ runtime/.venv/
 dist/
 build/
 
+# Generated app data
+history/
+outputs/
+*.log
+
 # Streamlit cache
 .streamlit/
 

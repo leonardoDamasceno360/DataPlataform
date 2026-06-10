@@ -1,51 +1,61 @@
-# =========================================================
-# automations/quadro_geral.py
-# =========================================================
-
-import pandas as pd
 import numpy as np
-from datetime import datetime
+from runtime.core.schema_utils import (
+    current_report_month,
+    select_and_rename_columns,
+)
 
 
 class QuadroGeral:
 
+    SINDICATO_MAP = {
+        "SINDPD/SP - SIND TRAB EMP PROC DADOS EST SP": "SP",
+        "SINDPD/RJ - Sind Trab Emp e Serv Pub e Priv de Inf Internet e Sim RJ": "RJ",
+        "Nenhum": "Other",
+        "SINTINORP/Londrina-Sind Trab Empr Cursos Inf Con S I D P A Bco Dados M": "Londrina",
+        "SINDPD/DF - Sind dos Trab em Empr e Órgãos Publ Proc Dados S I S do DF": "Other",
+        "SINDADOS/MG - Sind dos Empreg Emp de Proc Dados, Serv de Info Simil MG": "Other",
+        "SINDPD/MA - Sind dos Empregados Proc Dados no Est do Maranhão": "Other",
+        "SINDPD/PA - Sind Trabalhadores e Trabalhadoras em Tecn Informação Pará": "Other",
+        "SINDPD/ES - Sind Empreg Emp Proc Dados e Trab em Inform do Est ES": "Other",
+        "SPPD/MS - Sind Profissionais de Proc de Dados e Tec Informação de MS": "Other",
+        "SINDPD/PR - Sind dos Trab em Empr de Processamento do Estado do Paraná": "Other",
+        "SINDPD/PE - Sind Trab em Proc de Dados, Informat Tecn da Inform do PE": "Other",
+        "SINDPD/RS - Sind dos Trabalhadores em Processamento de Dados no Est RS": "Other",
+        "SINDPD/JOINVILLE - Sind Empreg em Empr Proc Dados Inform Simil Joinv": "Other",
+        "SITEPD - Sind dos Trab Empr Priv de Proc de Dados de Curitiba e Região": "Other",
+        "SINDADOS/BA - Sind Trab Empr e Órgãos Publ Proc Dados S I TI Com BA": "Other",
+    }
+
+    COLUMN_SPECS = [
+        ("Id Contratado", ["Id Contratado"]),
+        ("Nome Completo", ["Nome Completo"]),
+        ("Modelo de Folha", ["Modelo de Folha"]),
+        ("Data da Admissão", ["Data da Admissão"]),
+        ("Data da Rescisão", ["Data da Rescisão"]),
+        ("Cargo", ["Cargo"]),
+        ("Quantidade de Horas no Mês", ["Quantidade de Horas no Mês"]),
+        ("Segment HEAD", ["Segment HEAD"]),
+        ("Horizontal Line", ["Horizontal Line"]),
+        ("GROUP CUSTOMER", ["GROUP CUSTOMER"]),
+        ("Id Centro de Custo", ["Id Centro de Custo"]),
+        ("Centro de Custo", ["Centro de Custo"]),
+        ("ID Gestor", ["ID Gestor"]),
+        ("Nome Gestor", ["Nome Gestor"]),
+        ("Sexo", ["Sexo"]),
+        ("Quantidade de Anos de Idade", ["Quantidade de Anos de Idade"]),
+        ("Sindicato", ["Sindicato"]),
+        ("Situação", ["Situação"]),
+        ("Código Flexível Contratado 9", ["Código Flexível Contratado 9"]),
+        ("Nome Grade", ["Nome Grade"]),
+        ("É PCD?", ["É PCD?"]),
+        ("Tipo de Deficiência", ["Tipo de Deficiência"]),
+    ]
+
     def process(self, df):
 
-        df = df.copy()
-
-        df.columns = df.columns.astype(str).str.strip()
-
-        colunas_remover = (
-            list(df.columns[2:24]) +
-            list(df.columns[26:32]) +
-            list(df.columns[33:35]) +
-            list(df.columns[36:42]) +
-            list(df.columns[44:49]) +
-            list(df.columns[50:52]) +
-            list(df.columns[56:64]) +
-            list(df.columns[65:71]) +
-            list(df.columns[75:77])
-        )
-
-        # =========================================================
-        # COLUNAS PROTEGIDAS
-        # =========================================================
-        colunas_protegidas = [
-            "Sexo",
-            "É PCD?",
-            "Tipo de Deficiência"
-        ]
-
-        colunas_remover = [
-            col
-            for col in colunas_remover
-            if col not in colunas_protegidas
-        ]
-
-        df = df.drop(
-            colunas_remover,
-            axis=1,
-            errors="ignore"
+        df = select_and_rename_columns(
+            df,
+            self.COLUMN_SPECS,
         )
 
         if "Segment HEAD" in df.columns:
@@ -54,31 +64,30 @@ class QuadroGeral:
                 df["Segment HEAD"]
                 .replace({
 
-                    "Tushar Parikh": "BFSI",
-                    "Sangram Sahoo": "CBG",
+                    "Krishna Shrivastava": "BFSI",
+                    "Natacha Emicuri": "CBG & TSS",
                     "Bruno Folly CMI": "CMI",
                     "Jorge Banharo": "EnR",
                     "Ximena Jofre": "HR",
                     "Bruno Folly LSHC": "LSHC",
                     "Sol Besprosvan": "MFG",
                     "Ashok Kumar": "Nearshore",
-                    "Sabyasachi Chandra": "Utilities",
-
-                    "NA": "ESU",
-                    "Cyril John K": "ESU",
-                    "RMG": "ESU",
-                    "Bruno Rocha": "ESU",
-                    "Latesh Sewani": "ESU",
-                    "Amol Wadikar": "ESU",
-                    "Renzo Parodi": "ESU",
-                    "V Sathya": "ESU",
+                    "Ravi Sanker": "Utilities",
+                    "NA": "Other",
+                    "Cyril John K": "DIS",
+                    "RMG": "Other",
+                    "Bruno Rocha": "Other",
+                    "Latesh Sewani": "Finance",
+                    "Amol Wadikar": "Admin",
+                    "Renzo Parodi": "Legal",
+                    "V Sathya": "DEG",
                     "ESU": "ESU",
                     "Bruno Folly - ESU": "ESU",
-                    "Dhanasekhar V": "ESU",
-                    "Alma Leal": "ESU",
-                    "Nenhum": "ESU",
-                    "ILP": "ESU",
-                    "Pace Port": "ESU",
+                    "Dhanasekhar V": "ISM",
+                    "Alma Leal": "Marketing",
+                    "Nenhum": "Other",
+                    "ILP": "Other",
+                    "Pace Port": "Pace",
                     np.nan: "ESU"
                 })
             )
@@ -119,6 +128,13 @@ class QuadroGeral:
                 })
             )
 
+        if "Sindicato" in df.columns:
+
+            df["Sindicato"] = (
+                df["Sindicato"]
+                .replace(self.SINDICATO_MAP)
+            )
+
         if "Situação" in df.columns:
 
             df["Situação"] = (
@@ -140,8 +156,6 @@ class QuadroGeral:
                 })
             )
 
-        df["Report Month"] = (
-            datetime.today().strftime("%Y-%m")
-        )
+        df["Report Month"] = current_report_month()
 
         return df

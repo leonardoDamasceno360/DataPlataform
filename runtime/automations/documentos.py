@@ -3,7 +3,7 @@
 # =========================================================
 
 import pandas as pd
-from datetime import datetime
+from runtime.core.schema_utils import current_report_month
 
 
 class Documentos:
@@ -38,8 +38,6 @@ class Documentos:
                 )
             ]
 
-        df["Report Month"] = (
-            datetime.today().strftime("%Y-%m")
-        )
+        df["Report Month"] = current_report_month()
 
         return df.reset_index(drop=True)

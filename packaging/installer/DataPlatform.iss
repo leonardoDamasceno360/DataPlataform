@@ -7,7 +7,7 @@
 #endif
 #define MyAppPublisher "Internal Distribution"
 #define MyAppExeName "DataPlatform.exe"
-#define MySourceDir ProjectRoot + "\dist\DataPlatform"
+#define MySourceDir ProjectRoot + "\dist"
 #define MyOutputDir ProjectRoot + "\dist\installer"
 
 [Setup]
@@ -36,7 +36,7 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "desktopicon"; Description: "Criar atalho na area de trabalho"; GroupDescription: "Atalhos:"
 
 [Files]
-Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MySourceDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Data Platform"; Filename: "{app}\{#MyAppExeName}"

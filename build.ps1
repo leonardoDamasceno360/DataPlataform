@@ -61,7 +61,7 @@ if ($BuildInstaller) {
 
 Write-Host ""
 Write-Host "Build concluido."
-Write-Host "Executavel: $DistDir\DataPlatform\DataPlatform.exe"
+Write-Host "Executavel: $DistDir\DataPlatform.exe"
 
 if ($BuildInstaller) {
     Write-Host "Instalador: $DistDir\installer\DataPlatform-Setup-$Version.exe"

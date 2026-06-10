@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -17,6 +18,35 @@ APP_SLUG = "DataPlatform"
 HOST = "127.0.0.1"
 
 STARTUP_TIMEOUT = 90
+BROWSER_CANDIDATES = [
+    (
+        "msedge",
+        [
+            "--new-window",
+            "--start-maximized",
+        ],
+    ),
+    (
+        "chrome",
+        [
+            "--new-window",
+            "--start-maximized",
+        ],
+    ),
+    (
+        "brave",
+        [
+            "--new-window",
+            "--start-maximized",
+        ],
+    ),
+    (
+        "firefox",
+        [
+            "-new-window",
+        ],
+    ),
+]
 
 
 # =========================================================
@@ -382,6 +412,43 @@ def open_in_browser(url):
         "Abrindo navegador: %s",
         url,
     )
+
+    creation_flags = getattr(
+        subprocess,
+        "CREATE_NO_WINDOW",
+        0,
+    )
+
+    for browser_name, browser_args in BROWSER_CANDIDATES:
+
+        browser_path = shutil.which(browser_name)
+
+        if browser_path is None:
+            continue
+
+        try:
+
+            subprocess.Popen(
+                [
+                    browser_path,
+                    *browser_args,
+                    url,
+                ],
+                creationflags=creation_flags,
+            )
+
+            LOGGER.info(
+                "Navegador iniciado em janela maximizada: %s",
+                browser_name,
+            )
+            return
+
+        except Exception:
+
+            LOGGER.exception(
+                "Falha ao abrir %s em janela maximizada.",
+                browser_name,
+            )
 
     webbrowser.open_new(url)
 
