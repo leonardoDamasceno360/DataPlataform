@@ -113,16 +113,25 @@ class OT:
     @staticmethod
     def _build_request_status(value):
 
+        if pd.isna(value):
+            return "Not Requested"
+
         normalized_value = normalize_text(value)
 
         if not normalized_value:
             return "Not Requested"
 
         negative_markers = (
+            "non requested",
+            "non request",
+            "non requested status",
             "not requested",
             "no request",
             "without request",
             "not request",
+            "nao solicitado",
+            "nao requisitado",
+            "sem solicitacao",
         )
         if any(
             marker in normalized_value
