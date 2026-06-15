@@ -100,7 +100,7 @@ def render_header(app_name, display_names):
                     <div class="header-kicker">TCS Operations Platform</div>
                     <h1 class="header-title">{html.escape(app_name)}</h1>
                     <p class="header-copy">
-                        Upload, process and export RH or operations files in one compact workflow tuned for notebook screens at 100% zoom.
+                        Centralize file intake, processing and export for HR and operations routines in a single workflow built for fast review and reliable execution.
                     </p>
                     <div class="chip-row">{chip_html}</div>
                 </div>
