@@ -13,6 +13,7 @@ from runtime.automations import AUTOMATIONS
 from runtime.app.config import (
     HISTORY_ROOT,
     LOG_ROOT,
+    PIPELINE_SHEET_NAMES,
     SCHEMA_RULES,
 )
 from runtime.app.core.history_manager import append_history_entry
@@ -39,6 +40,14 @@ def pipeline_label(base_name, display_names):
     return display_names.get(
         base_name,
         base_name,
+    )
+
+
+def pipeline_sheet_name(base_name, display_names):
+
+    return PIPELINE_SHEET_NAMES.get(
+        base_name,
+        pipeline_label(base_name, display_names),
     )
 
 
@@ -392,6 +401,14 @@ def process_file(
 
         rows = len(result_df)
         buffer = io.BytesIO()
+        display_base = pipeline_label(
+            detected_base,
+            display_names,
+        )
+        sheet_name = pipeline_sheet_name(
+            detected_base,
+            display_names,
+        )[:31]
 
         with pd.ExcelWriter(
             buffer,
@@ -399,10 +416,10 @@ def process_file(
         ) as writer:
             result_df.to_excel(
                 writer,
-                sheet_name=detected_base[:31],
+                sheet_name=sheet_name,
                 index=False,
             )
-            worksheet = writer.sheets[detected_base[:31]]
+            worksheet = writer.sheets[sheet_name]
             format_excel_report_dates(
                 worksheet,
                 result_df,
@@ -419,10 +436,6 @@ def process_file(
         )
         finished_at = datetime.now()
         duration = perf_counter() - execution_start
-        display_base = pipeline_label(
-            detected_base,
-            display_names,
-        )
         log_lines = [
             f"Input file: {file_name}",
             f"Pipeline: {display_base}",

@@ -21,11 +21,16 @@ PIPELINE_DISPLAY_NAMES = {
     "XCelerate": "XCelerate",
     "Rest Period": "Rest Period",
     "OT": "Overtime",
-    "Separation Forms": "Separation Forms",
-    "Quadro Geral": "Workforce Overview",
+    "Separation Forms": "Separations Forms",
+    "Quadro Geral": "Quadro Geral - HC",
     "Documentos": "Documents",
     "Desligados Geral": "Separated Employees",
     "Ult Mov Sal": "Salary Movement",
+}
+
+PIPELINE_SHEET_NAMES = {
+    "Quadro Geral": "HC",
+    "Separation Forms": "Separations Forms",
 }
 
 PIPELINE_ORDER = [
