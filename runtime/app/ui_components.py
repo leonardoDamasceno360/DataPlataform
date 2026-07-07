@@ -29,9 +29,9 @@ def render_sidebar(theme_selection, theme_mode, display_names):
 
     with st.sidebar:
         render_logo(theme_mode)
-        st.caption("Workspace Controls")
+        st.caption("Workspace")
         st.markdown(
-            '<div class="sidebar-note">Theme and execution controls stay here so the main canvas remains operational.</div>',
+            '<div class="sidebar-note">Compact controls for theme, execution capacity and session reset.</div>',
             unsafe_allow_html=True,
         )
 
@@ -51,6 +51,11 @@ def render_sidebar(theme_selection, theme_mode, display_names):
             max_value=MAX_WORKERS,
             value=3,
             help="Controls how many files are processed in parallel.",
+        )
+
+        st.markdown(
+            f'<div class="sidebar-meta">Available pipelines: <strong>{len(display_names)}</strong></div>',
+            unsafe_allow_html=True,
         )
 
         with st.popover(
@@ -84,31 +89,18 @@ def render_sidebar(theme_selection, theme_mode, display_names):
 
 def render_header(app_name, display_names):
 
-    chip_html = "".join(
-        [
-            '<span class="status-chip">Automatic routing</span>',
-            '<span class="status-chip">Validated outputs</span>',
-            '<span class="status-chip">Desktop-ready exports</span>',
-        ]
-    )
-
     st.markdown(
         f"""
         <section class="app-header-compact">
-            <div class="header-grid">
+            <div class="header-inline">
                 <div>
-                    <div class="header-kicker">TCS Operations Platform</div>
+                    <div class="header-kicker">Internal Operations Workspace</div>
                     <h1 class="header-title">{html.escape(app_name)}</h1>
                     <p class="header-copy">
-                        Centralize file intake, processing and export for HR and operations routines in a single workflow built for fast review and reliable execution.
+                        Centralize uploads, execute the right automation and review deliverables in one operational workspace.
                     </p>
-                    <div class="chip-row">{chip_html}</div>
                 </div>
-                <div class="header-aside">
-                    <div class="header-aside-label">Pipelines</div>
-                    <div class="header-aside-value">{len(display_names)}</div>
-                    <div class="header-aside-copy">Current catalog available for automatic detection and manual recovery.</div>
-                </div>
+                <div class="header-flow-line">1 Upload <span>&rarr;</span> 2 Process <span>&rarr;</span> 3 Review <span>&rarr;</span> 4 Download</div>
             </div>
         </section>
         """,
@@ -120,63 +112,50 @@ def render_upload_section():
 
     st.markdown(
         """
-        <section class="upload-panel-compact">
-            <div class="section-caption">Input</div>
-            <h2 class="section-title">Batch Upload Workspace</h2>
-            <p class="section-copy">Load one or more Excel or CSV files and process the batch when you are ready.</p>
-        </section>
+        <div class="section-caption">Input</div>
+        <h2 class="section-title">Batch Upload</h2>
+        <p class="section-copy">Select one or more source files and run the batch when the selection is ready.</p>
+        <div class="upload-guidance">Accepted formats: <strong>.xlsx</strong> and <strong>.csv</strong></div>
         """,
         unsafe_allow_html=True,
     )
 
-    uploaded_files = st.file_uploader(
-        "Upload files",
-        type=["xlsx", "csv"],
-        accept_multiple_files=True,
-        label_visibility="collapsed",
-        key=f"uploader_{st.session_state['uploader_key']}",
-    )
+    upload_col, action_col = st.columns([4.5, 1.05], vertical_alignment="bottom")
+
+    with upload_col:
+        uploaded_files = st.file_uploader(
+            "Upload files",
+            type=["xlsx", "csv"],
+            accept_multiple_files=True,
+            label_visibility="collapsed",
+            key=f"uploader_{st.session_state['uploader_key']}",
+        )
 
     file_payloads = []
 
     if uploaded_files:
-        file_payloads = [
-            {
-                "name": file.name,
-                "bytes": file.getvalue(),
-                "hash": file_hash(
-                    file.getvalue(),
-                    file.name,
-                ),
-            }
-            for file in uploaded_files
-        ]
+        for file in uploaded_files:
+            file_bytes = file.getvalue()
+            file_payloads.append(
+                {
+                    "name": file.name,
+                    "bytes": file_bytes,
+                    "hash": file_hash(
+                        file_bytes,
+                        file.name,
+                    ),
+                }
+            )
 
-    return uploaded_files, file_payloads
-
-
-def render_action_bar(uploaded_files, worker_count):
-    columns = st.columns([1.15, 2.45])
-
-    with columns[0]:
+    with action_col:
         run_clicked = st.button(
             "Process Files",
-            use_container_width=True,
+            type="primary",
             disabled=not uploaded_files,
             key="process_button",
         )
 
-    with columns[1]:
-        st.markdown(
-            f"""
-            <div class="inline-note">
-                {len(uploaded_files) if uploaded_files else 0} file(s) selected with {worker_count} worker(s). Automatic validation runs inside processing.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    return run_clicked
+    return uploaded_files, file_payloads, run_clicked
 
 
 def render_manual_recovery_section(results, file_payloads, display_names):

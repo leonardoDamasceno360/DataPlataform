@@ -10,22 +10,23 @@ from runtime.core.schema_utils import (
 class QuadroGeral:
 
     SINDICATO_MAP = {
-        "SINDPD/SP - SIND TRAB EMP PROC DADOS EST SP": "SP",
-        "SINDPD/RJ - Sind Trab Emp e Serv Pub e Priv de Inf Internet e Sim RJ": "RJ",
-        "Nenhum": "Other",
-        "SINTINORP/Londrina-Sind Trab Empr Cursos Inf Con S I D P A Bco Dados M": "Londrina",
-        "SINDPD/DF - Sind dos Trab em Empr e ÃƒÆ’Ã¢â‚¬Å“rgÃƒÆ’Ã‚Â£os Publ Proc Dados S I S do DF": "Other",
-        "SINDADOS/MG - Sind dos Empreg Emp de Proc Dados, Serv de Info Simil MG": "Other",
-        "SINDPD/MA - Sind dos Empregados Proc Dados no Est do MaranhÃƒÆ’Ã‚Â£o": "Other",
-        "SINDPD/PA - Sind Trabalhadores e Trabalhadoras em Tecn InformaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o ParÃƒÆ’Ã‚Â¡": "Other",
-        "SINDPD/ES - Sind Empreg Emp Proc Dados e Trab em Inform do Est ES": "Other",
-        "SPPD/MS - Sind Profissionais de Proc de Dados e Tec InformaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o de MS": "Other",
-        "SINDPD/PR - Sind dos Trab em Empr de Processamento do Estado do ParanÃƒÆ’Ã‚Â¡": "Other",
-        "SINDPD/PE - Sind Trab em Proc de Dados, Informat Tecn da Inform do PE": "Other",
-        "SINDPD/RS - Sind dos Trabalhadores em Processamento de Dados no Est RS": "Other",
-        "SINDPD/JOINVILLE - Sind Empreg em Empr Proc Dados Inform Simil Joinv": "Other",
-        "SITEPD - Sind dos Trab Empr Priv de Proc de Dados de Curitiba e RegiÃƒÆ’Ã‚Â£o": "Other",
-        "SINDADOS/BA - Sind Trab Empr e ÃƒÆ’Ã¢â‚¬Å“rgÃƒÆ’Ã‚Â£os Publ Proc Dados S I TI Com BA": "Other",
+        "sindpd sp sind trab emp proc dados est sp": "SP",
+        "sindpd rj sind trab emp e serv pub e priv de inf internet e sim rj": "RJ",
+        "nenhum": "Other",
+        "sintinorp londrina sind trab empr cursos inf con s i d p a bco dados m": "Londrina",
+        "sindpd df sind dos trab em empr e orgaos publ proc dados s i s do df": "Other",
+        "sindados mg sind dos empreg emp de proc dados serv de info simil mg": "Other",
+        "sindpd ma sind dos empregados proc dados no est do maranhao": "Other",
+        "sindpd pa sind trabalhadoras e trabalhadores em tecn informacao para": "Other",
+        "sindpd pa sind trabalhadores e trabalhadoras em tecn informacao para": "Other",
+        "sindpd es sind empreg emp proc dados e trab em inform do est es": "Other",
+        "sppd ms sind profissionais de proc de dados e tec informacao de ms": "Other",
+        "sindpd pr sind dos trab em empr de processamento do estado do parana": "Other",
+        "sindpd pe sind trab em proc de dados informat tecn da inform do pe": "Other",
+        "sindpd rs sind dos trabalhadores em processamento de dados no est rs": "Other",
+        "sindpd joinville sind empreg em empr proc dados inform simil joinv": "Other",
+        "sitepd sind dos trab empr priv de proc de dados de curitiba e regiao": "Other",
+        "sindados ba sind trab empr e orgaos publ proc dados s i ti com ba": "Other",
     }
 
     COLUMN_SPECS = [
@@ -146,8 +147,8 @@ class QuadroGeral:
             )
 
         if "Sindicato" in df.columns:
-            df["Sindicato"] = df["Sindicato"].replace(
-                self.SINDICATO_MAP
+            df["Sindicato"] = df["Sindicato"].apply(
+                self._map_sindicato_value
             )
 
         if "Situação" in df.columns:
@@ -213,3 +214,13 @@ class QuadroGeral:
             return "Híbrido"
 
         return "Remoto"
+
+    @classmethod
+    def _map_sindicato_value(cls, value):
+
+        normalized_value = normalize_text(value)
+
+        if normalized_value in cls.SINDICATO_MAP:
+            return cls.SINDICATO_MAP[normalized_value]
+
+        return value

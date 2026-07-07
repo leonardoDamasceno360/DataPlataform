@@ -3,6 +3,7 @@ import io
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from pathlib import Path
 from time import perf_counter
 
 import pandas as pd
@@ -14,6 +15,7 @@ from runtime.app.config import (
     HISTORY_ROOT,
     LOG_ROOT,
     PIPELINE_SHEET_NAMES,
+    PREVIEW_ROWS,
     SCHEMA_RULES,
 )
 from runtime.app.core.history_manager import append_history_entry
@@ -33,6 +35,9 @@ from runtime.core.schema_utils import (
 
 
 logger = logging.getLogger("data_platform")
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+FALLBACK_LOG_ROOT = PROJECT_ROOT / "runtime_data" / "logs"
+FALLBACK_HISTORY_ROOT = PROJECT_ROOT / "runtime_data" / "history"
 
 
 def pipeline_label(base_name, display_names):
@@ -150,19 +155,46 @@ def unique_history_path(history_dir, file_name):
 
 
 def save_history(file_name, buffer):
+    history_day = datetime.today().strftime("%Y-%m-%d")
+    candidate_dirs = [
+        HISTORY_ROOT / history_day,
+        FALLBACK_HISTORY_ROOT / history_day,
+    ]
+    file_bytes = buffer.getvalue()
+    last_error = None
 
-    history_dir = HISTORY_ROOT / datetime.today().strftime("%Y-%m-%d")
-    history_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    for history_dir in candidate_dirs:
+        try:
+            history_dir.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            output_path = unique_history_path(
+                history_dir,
+                file_name,
+            )
+            output_path.write_bytes(file_bytes)
+            return output_path
+        except OSError as exc:
+            last_error = exc
+            logger.warning(
+                "History write failed in %s: %s",
+                history_dir,
+                exc,
+            )
 
-    output_path = unique_history_path(
-        history_dir,
-        file_name,
-    )
-    output_path.write_bytes(buffer.getvalue())
-    return output_path
+    if last_error is not None:
+        raise last_error
+
+    raise RuntimeError("Unable to persist output history.")
+
+
+def build_preview_dataframe(result_df):
+
+    if result_df is None or result_df.empty:
+        return None
+
+    return result_df.head(PREVIEW_ROWS).copy()
 
 
 def format_excel_report_dates(worksheet, result_df):
@@ -182,7 +214,6 @@ def format_output_path(path_obj):
     return str(path_obj).replace("\\", "/")
 
 
-@st.cache_data(show_spinner=False)
 def cached_load(
     file_hash_key,
     file_bytes,
@@ -208,7 +239,6 @@ def cached_detect(
     return detect_automation(None, file_name)
 
 
-@st.cache_data(show_spinner=False)
 def cached_validate(
     file_hash_key,
     file_bytes,
@@ -275,7 +305,6 @@ def cached_validate(
     ).to_dict()
 
 
-@st.cache_data(show_spinner=False)
 def cached_process(
     file_hash_key,
     df,
@@ -315,16 +344,37 @@ def validate_uploaded_files(
 
 
 def _write_execution_log(file_hash_key, lines):
-    LOG_ROOT.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-    log_path = LOG_ROOT / f"{file_hash_key}.log"
-    log_path.write_text(
-        "\n".join(lines),
-        encoding="utf-8",
-    )
-    return log_path
+    log_text = "\n".join(lines)
+    candidate_roots = [
+        LOG_ROOT,
+        FALLBACK_LOG_ROOT,
+    ]
+    last_error = None
+
+    for root in candidate_roots:
+        try:
+            root.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            log_path = root / f"{file_hash_key}.log"
+            log_path.write_text(
+                log_text,
+                encoding="utf-8",
+            )
+            return log_path
+        except OSError as exc:
+            last_error = exc
+            logger.warning(
+                "Log write failed in %s: %s",
+                root,
+                exc,
+            )
+
+    if last_error is not None:
+        raise last_error
+
+    raise RuntimeError("Unable to allocate execution log path.")
 
 
 def process_file(
@@ -400,6 +450,9 @@ def process_file(
         )
 
         rows = len(result_df)
+        preview_df = build_preview_dataframe(
+            result_df
+        )
         buffer = io.BytesIO()
         display_base = pipeline_label(
             detected_base,
@@ -434,6 +487,9 @@ def process_file(
             output_name,
             buffer,
         )
+        output_path_str = format_output_path(
+            output_path
+        )
         finished_at = datetime.now()
         duration = perf_counter() - execution_start
         log_lines = [
@@ -444,7 +500,7 @@ def process_file(
             f"Started at: {started_at.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Finished at: {finished_at.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Duration seconds: {duration:.2f}",
-            f"Output path: {format_output_path(output_path)}",
+            f"Output path: {output_path_str}",
         ]
         log_path = _write_execution_log(
             hash_key,
@@ -463,7 +519,7 @@ def process_file(
             log_lines=log_lines,
             output_files=[
                 OutputFile(
-                    path=format_output_path(output_path),
+                    path=output_path_str,
                     file_name=output_name,
                     rows=rows,
                     created_at=finished_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -474,6 +530,10 @@ def process_file(
         append_history_entry(
             pipeline_result.to_dict()
         )
+
+        del input_df
+        del result_df
+        del buffer
 
         return {
             "Hash": hash_key,
@@ -486,9 +546,8 @@ def process_file(
             "ExecutionTime": duration,
             "StartedAt": pipeline_result.started_at,
             "FinishedAt": pipeline_result.finished_at,
-            "DataFrame": result_df,
+            "PreviewData": preview_df,
             "Output": output_name,
-            "Bytes": buffer.getvalue(),
             "OutputFiles": [
                 output.to_dict()
                 for output in pipeline_result.output_files
@@ -558,9 +617,8 @@ def process_file(
             "ExecutionTime": duration,
             "StartedAt": started_at.strftime("%Y-%m-%d %H:%M:%S"),
             "FinishedAt": finished_at.strftime("%Y-%m-%d %H:%M:%S"),
-            "DataFrame": None,
+            "PreviewData": None,
             "Output": None,
-            "Bytes": None,
             "OutputFiles": [],
             "ErrorMessage": str(exc),
             "Log": f"{file_name} | Error: {exc}",
@@ -578,6 +636,24 @@ def process_uploaded_files(
 
     results = []
     total_files = len(file_payloads)
+    total_bytes = sum(
+        len(item["bytes"])
+        for item in file_payloads
+    )
+    largest_file_bytes = max(
+        (len(item["bytes"]) for item in file_payloads),
+        default=0,
+    )
+    effective_workers = worker_count
+
+    if total_bytes >= 25 * 1024 * 1024:
+        effective_workers = min(
+            effective_workers,
+            2,
+        )
+
+    if largest_file_bytes >= 12 * 1024 * 1024:
+        effective_workers = 1
 
     progress = st.progress(
         0,
@@ -586,7 +662,7 @@ def process_uploaded_files(
     status_placeholder = st.empty()
 
     with ThreadPoolExecutor(
-        max_workers=worker_count
+        max_workers=effective_workers
     ) as executor:
         futures = []
 
@@ -619,7 +695,7 @@ def process_uploaded_files(
                 completed / total_files,
                 text=(
                     f"Processed {completed} "
-                    f"of {total_files} files..."
+                    f"of {total_files} files with {effective_workers} worker(s)..."
                 ),
             )
             status_placeholder.caption(

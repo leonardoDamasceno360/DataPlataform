@@ -8,6 +8,15 @@ from runtime.app.config import (
     HISTORY_ROOT,
 )
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+FALLBACK_HISTORY_ROOT = PROJECT_ROOT / "runtime_data" / "history"
+FALLBACK_EXECUTION_HISTORY_FILE = (
+    PROJECT_ROOT
+    / "runtime_data"
+    / "logs"
+    / "execution_history.jsonl"
+)
+
 
 def _ensure_parent(path_obj: Path):
     path_obj.parent.mkdir(
@@ -17,27 +26,40 @@ def _ensure_parent(path_obj: Path):
 
 
 def append_history_entry(entry: dict):
-    _ensure_parent(EXECUTION_HISTORY_FILE)
-    with EXECUTION_HISTORY_FILE.open(
-        "a",
-        encoding="utf-8",
-    ) as handle:
-        handle.write(
-            json.dumps(
-                entry,
-                ensure_ascii=False,
-            )
-        )
-        handle.write("\n")
+    candidate_files = [
+        EXECUTION_HISTORY_FILE,
+        FALLBACK_EXECUTION_HISTORY_FILE,
+    ]
+    payload = json.dumps(
+        entry,
+        ensure_ascii=False,
+    )
+    last_error = None
+
+    for history_file in candidate_files:
+        try:
+            _ensure_parent(history_file)
+            with history_file.open(
+                "a",
+                encoding="utf-8",
+            ) as handle:
+                handle.write(payload)
+                handle.write("\n")
+            return
+        except OSError as exc:
+            last_error = exc
+
+    if last_error is not None:
+        raise last_error
 
 
-def load_history_entries(limit=None):
-    if not EXECUTION_HISTORY_FILE.exists():
+def _load_entries_from_path(history_file: Path):
+    if not history_file.exists():
         return []
 
     rows = []
 
-    with EXECUTION_HISTORY_FILE.open(
+    with history_file.open(
         "r",
         encoding="utf-8",
     ) as handle:
@@ -45,7 +67,21 @@ def load_history_entries(limit=None):
             line = line.strip()
             if not line:
                 continue
-            rows.append(json.loads(line))
+            rows.append(
+                json.loads(line)
+            )
+    return rows
+
+
+def load_history_entries(limit=None):
+    rows = _load_entries_from_path(
+        EXECUTION_HISTORY_FILE
+    )
+
+    if not rows:
+        rows = _load_entries_from_path(
+            FALLBACK_EXECUTION_HISTORY_FILE
+        )
 
     rows.sort(
         key=lambda item: item.get(
@@ -102,10 +138,23 @@ def list_recent_history():
 
     files = []
 
-    if not HISTORY_ROOT.exists():
+    history_roots = [
+        HISTORY_ROOT,
+        FALLBACK_HISTORY_ROOT,
+    ]
+    available_root = next(
+        (
+            root
+            for root in history_roots
+            if root.exists()
+        ),
+        None,
+    )
+
+    if available_root is None:
         return files
 
-    for path in HISTORY_ROOT.rglob("*"):
+    for path in available_root.rglob("*"):
         if path.is_file():
             files.append(path)
 

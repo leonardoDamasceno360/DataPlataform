@@ -19,8 +19,8 @@ PIPELINE_DISPLAY_NAMES = {
     "Periódicos": "Periodic Exams",
     "Gems": "Gems",
     "XCelerate": "XCelerate",
-    "Rest Period": "Rest Period",
-    "OT": "Overtime",
+    "Rest Period": "RP",
+    "OT": "OT",
     "Separation Forms": "Separations Forms",
     "Quadro Geral": "Quadro Geral - HC",
     "Documentos": "Documents",
@@ -31,6 +31,8 @@ PIPELINE_DISPLAY_NAMES = {
 PIPELINE_SHEET_NAMES = {
     "Quadro Geral": "HC",
     "Separation Forms": "Separations Forms",
+    "Rest Period": "RP",
+    "OT": "OT",
 }
 
 PIPELINE_ORDER = [

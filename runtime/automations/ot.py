@@ -44,6 +44,10 @@ class OT:
             df,
             self.COLUMN_SPECS,
         )
+        result["OT Classification"] = result.apply(
+            self._build_ot_classification,
+            axis=1,
+        )
         result["Compliance as per MN1"] = result.apply(
             self._build_compliance_status,
             axis=1,
@@ -90,6 +94,78 @@ class OT:
             return None
 
         return float(numeric)
+
+    @classmethod
+    def _build_ot_classification(cls, row):
+
+        ot_hours = cls._parse_ot_hours(
+            row.get("Total OT Hours Done")
+        )
+
+        if ot_hours is not None:
+            if ot_hours <= 0.5:
+                return "Up to 30min"
+
+            if ot_hours <= 2:
+                return "30 min to 2 hours"
+
+            if ot_hours <= 4:
+                return "2 hours to 4 hours"
+
+            return "over 4 hours"
+
+        return cls._translate_ot_classification(
+            row.get("OT Classification")
+        )
+
+    @staticmethod
+    def _translate_ot_classification(value):
+
+        if pd.isna(value):
+            return ""
+
+        text = str(value).strip()
+
+        if not text:
+            return ""
+
+        normalized_value = normalize_text(text)
+
+        classification_map = {
+            "ate 30 min": "Up to 30min",
+            "ate 30 mins": "Up to 30min",
+            "up to 30 min": "Up to 30min",
+            "up to 30 mins": "Up to 30min",
+            "ate 2 hrs": "30 min to 2 hours",
+            "ate 2 hr": "30 min to 2 hours",
+            "ate 2 horas": "30 min to 2 hours",
+            "up to 2 hrs": "30 min to 2 hours",
+            "up to 2 hours": "30 min to 2 hours",
+            "30 min a 2 hrs": "30 min to 2 hours",
+            "30 min a 2 hr": "30 min to 2 hours",
+            "30 min a 2 horas": "30 min to 2 hours",
+            "30 min to 2 hrs": "30 min to 2 hours",
+            "30 min to 2 hours": "30 min to 2 hours",
+            "de 2 ate 4 hrs": "2 hours to 4 hours",
+            "de 2 ate 4 hr": "2 hours to 4 hours",
+            "de 2 ate 4 horas": "2 hours to 4 hours",
+            "2 hrs a 4 hrs": "2 hours to 4 hours",
+            "2 hr a 4 hr": "2 hours to 4 hours",
+            "2 horas a 4 horas": "2 hours to 4 hours",
+            "2 hours to 4 hours": "2 hours to 4 hours",
+            "mais de 4 hrs": "over 4 hours",
+            "mais de 4 hr": "over 4 hours",
+            "mais de 4 horas": "over 4 hours",
+            "more than 4 hours": "over 4 hours",
+            "over 4 hours": "over 4 hours",
+        }
+
+        if normalized_value in classification_map:
+            return classification_map[
+                normalized_value
+            ]
+
+        return text
 
     @classmethod
     def _build_compliance_status(cls, row):

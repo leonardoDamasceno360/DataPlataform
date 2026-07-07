@@ -2,11 +2,12 @@ import html
 import io
 import zipfile
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from runtime.app.config import APP_HOME, HISTORY_ROOT, OUTPUT_ROOT, PREVIEW_ROWS
+from runtime.app.config import APP_HOME, HISTORY_ROOT, OUTPUT_ROOT
 from runtime.app.services import (
     build_status_dataframe,
     format_output_path,
@@ -15,17 +16,7 @@ from runtime.app.services import (
 
 
 def render_empty_state():
-
-    st.markdown(
-        """
-        <section class="section-card-compact">
-            <div class="section-caption">Ready</div>
-            <h3 class="section-title">Start a new batch</h3>
-            <p class="section-copy">Use the upload area to load files, validate schema compatibility and then process only when the batch is ready.</p>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
+    return
 
 
 def render_overview_tab(results, display_names):
@@ -35,7 +26,7 @@ def render_overview_tab(results, display_names):
         <section class="section-card-compact">
             <div class="section-caption">Overview</div>
             <h3 class="section-title">Execution Status</h3>
-            <p class="section-copy">Review file status, generated rows and runtime before downloading the outputs.</p>
+            <p class="section-copy">Review pipeline, status, rows and runtime before moving to preview or downloads.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -58,7 +49,7 @@ def render_preview_tab(results):
         <section class="section-card-compact">
             <div class="section-caption">Preview</div>
             <h3 class="section-title">Processed Samples</h3>
-            <p class="section-copy">Inspect the first rows of each successful output without opening the final Excel file.</p>
+            <p class="section-copy">Inspect a small sample of each successful output without opening the final Excel file.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -67,7 +58,7 @@ def render_preview_tab(results):
     preview_results = [
         result
         for result in results
-        if result["DataFrame"] is not None
+        if result["PreviewData"] is not None
     ]
 
     if not preview_results:
@@ -80,7 +71,7 @@ def render_preview_tab(results):
             expanded=False,
         ):
             st.dataframe(
-                result["DataFrame"].head(PREVIEW_ROWS),
+                result["PreviewData"],
                 use_container_width=True,
                 hide_index=True,
             )
@@ -93,7 +84,7 @@ def render_downloads_tab(results):
         <section class="section-card-compact">
             <div class="section-caption">Downloads</div>
             <h3 class="section-title">Export Center</h3>
-            <p class="section-copy">Review generated files, row counts and export timestamps, then download individual outputs or the full ZIP package.</p>
+            <p class="section-copy">Export individual outputs or package the successful batch into one ZIP file.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -113,25 +104,35 @@ def render_downloads_tab(results):
 
     with zipfile.ZipFile(zip_buffer, "w") as zip_file:
         for result in successful_results:
-            zip_file.writestr(
-                result["Output"],
-                result["Bytes"],
+            output_meta = result.get(
+                "OutputFiles",
+                [],
+            )[0]
+            output_path = Path(
+                output_meta["path"]
             )
+
+            if output_path.exists():
+                zip_file.write(
+                    output_path,
+                    arcname=output_meta["file_name"],
+                )
 
     zip_buffer.seek(0)
 
-    top_cols = st.columns([1.3, 3.0])
+    top_cols = st.columns([3.2, 1.0], vertical_alignment="center")
     with top_cols[0]:
-        st.download_button(
-            "Download Full ZIP",
-            zip_buffer,
-            file_name=f"processed_{datetime.today().strftime('%Y-%m-%d')}.zip",
-            use_container_width=True,
+        st.markdown(
+            '<div class="inline-note export-note">ZIP export groups every successful file from the current run without reprocessing.</div>',
+            unsafe_allow_html=True,
         )
     with top_cols[1]:
-        st.markdown(
-            '<div class="inline-note">ZIP export groups every successful output from the latest batch without reprocessing the files.</div>',
-            unsafe_allow_html=True,
+        st.download_button(
+            "Download ZIP",
+            zip_buffer,
+            file_name=f"processed_{datetime.today().strftime('%Y-%m-%d')}.zip",
+            key="download_zip_button",
+            use_container_width=True,
         )
 
     st.markdown('<div class="export-table">', unsafe_allow_html=True)
@@ -171,11 +172,20 @@ def render_downloads_tab(results):
             f"<div class='export-cell'>{html.escape(output_meta['created_at'])}</div>",
             unsafe_allow_html=True,
         )
+        output_path = Path(
+            output_meta["path"]
+        )
+        output_bytes = (
+            output_path.read_bytes()
+            if output_path.exists()
+            else b""
+        )
         cols[4].download_button(
             "Download",
-            data=result["Bytes"],
+            data=output_bytes,
             file_name=result["Output"],
             key=f"download_{index}_{result['Output']}",
+            disabled=not output_path.exists(),
             use_container_width=True,
         )
 
@@ -189,7 +199,7 @@ def render_logs_tab(results):
         <section class="section-card-compact">
             <div class="section-caption">Logs</div>
             <h3 class="section-title">Execution Logs</h3>
-            <p class="section-copy">Each file execution produces its own log entry and saved log file for traceability.</p>
+            <p class="section-copy">Review the consolidated execution trace for the latest batch and export it when needed.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -224,7 +234,7 @@ def render_history_tab():
         <section class="section-card-compact">
             <div class="section-caption">History</div>
             <h3 class="section-title">Execution Archive</h3>
-            <p class="section-copy">History persists between sessions and records pipeline, file, status, generated rows and execution duration.</p>
+            <p class="section-copy">Historical executions remain available between sessions for operational follow-up and auditability.</p>
         </section>
         """,
         unsafe_allow_html=True,

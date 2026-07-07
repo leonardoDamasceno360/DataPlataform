@@ -23,7 +23,6 @@ from runtime.app.core.session_manager import (
     safe_clear_session,
 )
 from runtime.app.ui_components import (
-    render_action_bar,
     render_header,
     render_manual_recovery_section,
     render_sidebar,
@@ -100,7 +99,7 @@ validations = st.session_state.get(
     [],
 )
 
-uploaded_files, file_payloads = render_upload_section()
+uploaded_files, file_payloads, run_clicked = render_upload_section()
 current_hashes = [
     item["hash"]
     for item in file_payloads
@@ -119,11 +118,6 @@ if current_hashes != stored_hashes:
     st.session_state["output_manifest"] = []
     if file_payloads:
         st.session_state["last_results"] = []
-
-run_clicked = render_action_bar(
-    uploaded_files,
-    sidebar_state["worker_count"],
-)
 
 validations = st.session_state.get(
     "validation_rows",
