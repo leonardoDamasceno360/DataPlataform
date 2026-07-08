@@ -1,6 +1,9 @@
 import pandas as pd
 import unicodedata
-from runtime.core.schema_utils import current_report_month
+from runtime.core.schema_utils import (
+    current_report_month,
+    to_integer_series,
+)
 
 
 class IBelong:
@@ -180,6 +183,10 @@ class IBelong:
         # CONVERSÃO DE TIPOS
         # =====================================================
         final_df = self._convert_types(final_df)
+
+        final_df["New Joinee emp id"] = to_integer_series(
+            final_df["New Joinee emp id"]
+        )
 
         return final_df
 

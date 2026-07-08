@@ -9,6 +9,11 @@ from time import perf_counter
 import pandas as pd
 import streamlit as st
 from openpyxl.utils import get_column_letter
+from pandas.api.types import (
+    is_datetime64_any_dtype,
+    is_float_dtype,
+    is_integer_dtype,
+)
 
 from runtime.automations import AUTOMATIONS
 from runtime.app.config import (
@@ -207,6 +212,34 @@ def format_excel_report_dates(worksheet, result_df):
 
     for cell in worksheet[column_letter][1:]:
         cell.number_format = "DD/MM/YYYY"
+
+
+def format_excel_column_types(worksheet, result_df):
+
+    for column_index, column_name in enumerate(
+        result_df.columns,
+        start=1,
+    ):
+        series = result_df[column_name]
+        column_letter = get_column_letter(column_index)
+
+        if is_datetime64_any_dtype(series):
+            for cell in worksheet[column_letter][1:]:
+                if cell.value is not None:
+                    cell.number_format = "DD/MM/YYYY"
+            continue
+
+        if is_integer_dtype(series):
+            for cell in worksheet[column_letter][1:]:
+                if cell.value is not None:
+                    cell.number_format = "0"
+            continue
+
+        if is_float_dtype(series):
+            for cell in worksheet[column_letter][1:]:
+                if cell.value is not None:
+                    cell.number_format = "0.00"
+            continue
 
 
 def format_output_path(path_obj):
@@ -473,6 +506,10 @@ def process_file(
                 index=False,
             )
             worksheet = writer.sheets[sheet_name]
+            format_excel_column_types(
+                worksheet,
+                result_df,
+            )
             format_excel_report_dates(
                 worksheet,
                 result_df,

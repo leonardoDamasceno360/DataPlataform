@@ -4,6 +4,9 @@ from runtime.core.schema_utils import (
     current_report_month,
     normalize_text,
     select_and_rename_columns,
+    to_date_series,
+    to_decimal_series,
+    to_integer_series,
 )
 
 
@@ -33,15 +36,15 @@ class QuadroGeral:
         ("Id Contratado", ["Id Contratado"]),
         ("Nome Completo", ["Nome Completo"]),
         ("Modelo de Folha", ["Modelo de Folha"]),
-        ("Data da Admissão", ["Data da Admissão", "Data da AdmissÃ£o", "Data da AdmissÃƒÆ’Ã‚Â£o"]),
-        ("Data da Rescisão", ["Data da Rescisão", "Data da RescisÃ£o", "Data da RescisÃƒÆ’Ã‚Â£o"]),
+        ("Data da AdmissÃ£o", ["Data da AdmissÃ£o", "Data da AdmissÃƒÂ£o", "Data da AdmissÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o"]),
+        ("Data da RescisÃ£o", ["Data da RescisÃ£o", "Data da RescisÃƒÂ£o", "Data da RescisÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o"]),
         ("Cargo", ["Cargo"]),
         (
-            "Quantidade de Horas no Mês",
+            "Quantidade de Horas no MÃªs",
             [
-                "Quantidade de Horas no Mês",
                 "Quantidade de Horas no MÃªs",
-                "Quantidade de Horas no MÃƒÆ’Ã‚Âªs",
+                "Quantidade de Horas no MÃƒÂªs",
+                "Quantidade de Horas no MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªs",
             ],
         ),
         ("Segment HEAD", ["Segment HEAD"]),
@@ -54,20 +57,20 @@ class QuadroGeral:
         ("Sexo", ["Sexo"]),
         ("Quantidade de Anos de Idade", ["Quantidade de Anos de Idade"]),
         ("Sindicato", ["Sindicato"]),
-        ("Situação", ["Situação", "SituaÃ§Ã£o", "SituaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o"]),
+        ("SituaÃ§Ã£o", ["SituaÃ§Ã£o", "SituaÃƒÂ§ÃƒÂ£o", "SituaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o"]),
         (
-            "Código Flexível Contratado 9",
+            "CÃ³digo FlexÃ­vel Contratado 9",
             [
-                "Código Flexível Contratado 9",
                 "CÃ³digo FlexÃ­vel Contratado 9",
-                "CÃƒÆ’Ã‚Â³digo FlexÃƒÆ’Ã‚Â­vel Contratado 9",
+                "CÃƒÂ³digo FlexÃƒÂ­vel Contratado 9",
+                "CÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³digo FlexÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­vel Contratado 9",
             ],
         ),
         ("Nome Grade", ["Nome Grade"]),
-        ("É PCD?", ["É PCD?", "Ã‰ PCD?", "ÃƒÆ’Ã¢â‚¬Â° PCD?", "E PCD?", "PCD?"]),
+        ("Ã‰ PCD?", ["Ã‰ PCD?", "Ãƒâ€° PCD?", "ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â° PCD?", "E PCD?", "PCD?"]),
         (
-            "Tipo de Deficiência",
-            ["Tipo de Deficiência", "Tipo de DeficiÃªncia", "Tipo de DeficiÃƒÆ’Ã‚Âªncia"],
+            "Tipo de DeficiÃªncia",
+            ["Tipo de DeficiÃªncia", "Tipo de DeficiÃƒÂªncia", "Tipo de DeficiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªncia"],
         ),
     ]
 
@@ -77,9 +80,16 @@ class QuadroGeral:
             df,
             self.COLUMN_SPECS,
         )
+        df["Id Contratado"] = to_integer_series(df["Id Contratado"])
+        df["Data da AdmissÃ£o"] = to_date_series(df["Data da AdmissÃ£o"])
+        df["Data da RescisÃ£o"] = to_date_series(df["Data da RescisÃ£o"])
+        df["Quantidade de Horas no MÃªs"] = to_decimal_series(df["Quantidade de Horas no MÃªs"])
+        df["Id Centro de Custo"] = to_integer_series(df["Id Centro de Custo"])
+        df["ID Gestor"] = to_integer_series(df["ID Gestor"])
+        df["Quantidade de Anos de Idade"] = to_integer_series(df["Quantidade de Anos de Idade"])
         raw_status_by_row = (
-            df["Situação"].copy()
-            if "Situação" in df.columns
+            df["SituaÃ§Ã£o"].copy()
+            if "SituaÃ§Ã£o" in df.columns
             else None
         )
 
@@ -151,19 +161,19 @@ class QuadroGeral:
                 self._map_sindicato_value
             )
 
-        if "Situação" in df.columns:
-            df["Situação"] = df["Situação"].replace(
+        if "SituaÃ§Ã£o" in df.columns:
+            df["SituaÃ§Ã£o"] = df["SituaÃ§Ã£o"].replace(
                 {
                     "Demitido em Meses Anteriores": "Separated",
-                    "Demitido no Mês": "Separated",
+                    "Demitido no MÃªs": "Separated",
                     "Em Atividade Normal": "Active",
-                    "Gozando Férias": "Active",
-                    "Auxílio-Doença": "Afastado",
-                    "Suspensão Contratual (Art. 476-A da CLT)": "Afastado",
-                    "Licença-Maternidade": "Afastado",
-                    "Afastado sem Remuneração": "Afastado",
+                    "Gozando FÃ©rias": "Active",
+                    "AuxÃ­lio-DoenÃ§a": "Afastado",
+                    "SuspensÃ£o Contratual (Art. 476-A da CLT)": "Afastado",
+                    "LicenÃ§a-Maternidade": "Afastado",
+                    "Afastado sem RemuneraÃ§Ã£o": "Afastado",
                     "Afastado por Aposentadoria Invalidez": "Afastado",
-                    "Afastado Pré-Auxílio-Doença": "Afastado",
+                    "Afastado PrÃ©-AuxÃ­lio-DoenÃ§a": "Afastado",
                 }
             )
 

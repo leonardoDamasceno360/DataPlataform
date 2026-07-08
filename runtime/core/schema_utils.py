@@ -3,6 +3,11 @@ import unicodedata
 from datetime import datetime
 
 import pandas as pd
+from pandas.api.types import (
+    is_datetime64_any_dtype,
+    is_object_dtype,
+    is_string_dtype,
+)
 
 
 MOJIBAKE_REPLACEMENTS = {
@@ -186,3 +191,71 @@ def sanitize_connect_type_columns(df):
         )
 
     return result
+
+
+def to_integer_series(series):
+
+    numeric = pd.to_numeric(
+        series,
+        errors="coerce",
+    )
+
+    return numeric.round().astype("Int64")
+
+
+def to_decimal_series(series):
+
+    if is_datetime64_any_dtype(series):
+        return series
+
+    if is_object_dtype(series) or is_string_dtype(series):
+        cleaned = series.apply(_coerce_decimal_value)
+        return pd.to_numeric(
+            cleaned,
+            errors="coerce",
+        )
+
+    return pd.to_numeric(
+        series,
+        errors="coerce",
+    )
+
+
+def to_date_series(series):
+
+    parsed = pd.to_datetime(
+        series,
+        errors="coerce",
+        dayfirst=True,
+    )
+
+    return parsed.dt.normalize()
+
+
+def _coerce_decimal_value(value):
+
+    if pd.isna(value):
+        return pd.NA
+
+    if isinstance(value, pd.Timedelta):
+        return value.total_seconds() / 3600
+
+    text = clean_column_name(value)
+
+    if not text:
+        return pd.NA
+
+    normalized_value = text.replace(",", ".")
+
+    time_match = re.fullmatch(
+        r"(\d{1,2}):(\d{2})(?::(\d{2}))?",
+        normalized_value,
+    )
+
+    if time_match:
+        hours = int(time_match.group(1))
+        minutes = int(time_match.group(2))
+        seconds = int(time_match.group(3) or 0)
+        return hours + (minutes / 60) + (seconds / 3600)
+
+    return normalized_value

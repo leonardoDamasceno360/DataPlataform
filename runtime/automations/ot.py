@@ -5,6 +5,9 @@ import pandas as pd
 from runtime.core.schema_utils import (
     normalize_text,
     select_and_rename_columns,
+    to_date_series,
+    to_decimal_series,
+    to_integer_series,
 )
 
 
@@ -43,6 +46,15 @@ class OT:
         result = select_and_rename_columns(
             df,
             self.COLUMN_SPECS,
+        )
+        result["Id"] = to_integer_series(
+            result["Id"]
+        )
+        result["Date"] = to_date_series(
+            result["Date"]
+        )
+        result["Total ot hours done"] = to_decimal_series(
+            result["Total ot hours done"]
         )
         result["Ot classification"] = result.apply(
             self._build_ot_classification,
