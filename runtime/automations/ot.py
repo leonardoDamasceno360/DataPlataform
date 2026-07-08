@@ -11,23 +11,23 @@ from runtime.core.schema_utils import (
 class OT:
 
     COLUMN_SPECS = [
-        ("ID", ["ID", "Id"]),
-        ("DATE", ["DATE", "Date"]),
-        ("Type of Day", ["Type of Day"]),
+        ("Id", ["ID", "Id"]),
+        ("Date", ["DATE", "Date"]),
+        ("Type of day", ["Type of Day", "Type of day"]),
         (
-            "Last OT Request Status",
+            "Last ot request status",
             ["Last OT Request Status", "Last Ot Request Status"],
         ),
         (
-            "Total OT Hours Done",
+            "Total ot hours done",
             ["Total OT Hours Done", "Total Ot Hours Done"],
         ),
         (
-            "OT Classification",
+            "Ot classification",
             ["OT Classification", "Ot Classification"],
         ),
         (
-            "OT Hours Compliance Classification",
+            "Ot hours compliance classification",
             [
                 "OT Hours Compliance Classification",
                 "Ot Hours Compliance Classification",
@@ -44,16 +44,19 @@ class OT:
             df,
             self.COLUMN_SPECS,
         )
-        result["OT Classification"] = result.apply(
+        result["Ot classification"] = result.apply(
             self._build_ot_classification,
             axis=1,
         )
+        result["Ot hours compliance classification"] = result[
+            "Ot hours compliance classification"
+        ].apply(self._normalize_compliance_label)
         result["Compliance as per MN1"] = result.apply(
             self._build_compliance_status,
             axis=1,
         )
         result["Request Status"] = result[
-            "Last OT Request Status"
+            "Last ot request status"
         ].apply(self._build_request_status)
         return result
 
@@ -99,7 +102,7 @@ class OT:
     def _build_ot_classification(cls, row):
 
         ot_hours = cls._parse_ot_hours(
-            row.get("Total OT Hours Done")
+            row.get("Total ot hours done")
         )
 
         if ot_hours is not None:
@@ -115,7 +118,7 @@ class OT:
             return "over 4 hours"
 
         return cls._translate_ot_classification(
-            row.get("OT Classification")
+            row.get("Ot classification")
         )
 
     @staticmethod
@@ -171,20 +174,49 @@ class OT:
     def _build_compliance_status(cls, row):
 
         current_value = row.get(
-            "OT Hours Compliance Classification"
+            "Ot hours compliance classification"
         )
-        day_type = normalize_text(row.get("Type of Day", ""))
+        day_type = normalize_text(row.get("Type of day", ""))
         ot_hours = cls._parse_ot_hours(
-            row.get("Total OT Hours Done")
+            row.get("Total ot hours done")
         )
 
         if day_type == "regular day" and ot_hours is not None and ot_hours > 4:
-            return "Not Compliant"
+            return "Non-Compliant"
 
         if pd.isna(current_value):
             return ""
 
-        return str(current_value).strip()
+        return cls._normalize_compliance_label(
+            current_value
+        )
+
+    @staticmethod
+    def _normalize_compliance_label(value):
+
+        if pd.isna(value):
+            return ""
+
+        text = str(value).strip()
+
+        if not text:
+            return ""
+
+        normalized_value = normalize_text(text)
+
+        compliance_map = {
+            "non compliance": "Non-Compliant",
+            "non-compliance": "Non-Compliant",
+            "not compliant": "Non-Compliant",
+            "not-compliant": "Non-Compliant",
+            "compliance": "Compliant",
+            "compliant": "Compliant",
+        }
+
+        return compliance_map.get(
+            normalized_value,
+            text,
+        )
 
     @staticmethod
     def _build_request_status(value):
@@ -214,6 +246,12 @@ class OT:
             for marker in negative_markers
         ):
             return "Not Requested"
+
+        if "approved" in normalized_value or "aprovado" in normalized_value:
+            return "Approved"
+
+        if "reproved" in normalized_value or "reprovado" in normalized_value:
+            return "Reproved"
 
         if "request" in normalized_value:
             return "Requested"
