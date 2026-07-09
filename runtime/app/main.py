@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from runtime.app.config import APP_NAME, PIPELINE_DISPLAY_NAMES
 from runtime.app.core.execution_manager import (
+    build_session_file_payloads,
     merge_results,
     process_uploaded_files,
     validate_uploaded_files,
@@ -132,7 +133,9 @@ def run_app():
             "Run triggered with %s file(s)",
             len(file_payloads),
         )
-        st.session_state["last_file_payloads"] = file_payloads
+        st.session_state["last_file_payloads"] = build_session_file_payloads(
+            file_payloads
+        )
         if not validations:
             st.session_state["validation_rows"] = validate_uploaded_files(
                 file_payloads,
@@ -144,15 +147,6 @@ def run_app():
             worker_count=sidebar_state["worker_count"],
             display_names=PIPELINE_DISPLAY_NAMES,
         )
-        st.session_state["execution_logs"] = [
-            result.get("LogLines", [])
-            for result in st.session_state["last_results"]
-        ]
-        st.session_state["output_manifest"] = [
-            output
-            for result in st.session_state["last_results"]
-            for output in result.get("OutputFiles", [])
-        ]
         run_finished = datetime.now()
         st.session_state["last_run_at"] = run_finished.strftime(
             "%Y-%m-%d %H:%M:%S"
@@ -188,15 +182,6 @@ def run_app():
             results,
             retried_results,
         )
-        st.session_state["execution_logs"] = [
-            result.get("LogLines", [])
-            for result in st.session_state["last_results"]
-        ]
-        st.session_state["output_manifest"] = [
-            output
-            for result in st.session_state["last_results"]
-            for output in result.get("OutputFiles", [])
-        ]
         retry_finished = datetime.now()
         st.session_state["last_run_at"] = retry_finished.strftime(
             "%Y-%m-%d %H:%M:%S"

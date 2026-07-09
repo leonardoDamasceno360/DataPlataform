@@ -70,8 +70,9 @@ def render_preview_tab(results):
             f"{result['DisplayBase']} | {result['Arquivo']}",
             expanded=False,
         ):
+            preview_rows = result["PreviewData"]
             st.dataframe(
-                result["PreviewData"],
+                pd.DataFrame(preview_rows),
                 use_container_width=True,
                 hide_index=True,
             )

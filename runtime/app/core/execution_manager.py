@@ -48,6 +48,7 @@ FALLBACK_HISTORY_ROOT = PROJECT_ROOT / "runtime_data" / "history"
 TEMP_RUNTIME_ROOT = Path(tempfile.gettempdir()) / "dataplatform_runtime"
 TEMP_LOG_ROOT = TEMP_RUNTIME_ROOT / "logs"
 TEMP_HISTORY_ROOT = TEMP_RUNTIME_ROOT / "history"
+TEMP_UPLOAD_ROOT = TEMP_RUNTIME_ROOT / "uploads"
 
 
 def pipeline_label(base_name, display_names):
@@ -86,6 +87,47 @@ def build_file_object(file_bytes, file_name):
     file_like = io.BytesIO(file_bytes)
     file_like.name = file_name
     return file_like
+
+
+def resolve_payload_bytes(file_payload):
+
+    file_bytes = file_payload.get("bytes")
+
+    if file_bytes is not None:
+        return file_bytes
+
+    temp_path = file_payload.get("temp_path")
+
+    if not temp_path:
+        raise ValueError(
+            f"File payload for {file_payload.get('name', 'unknown file')} has no bytes or temp path."
+        )
+
+    return Path(temp_path).read_bytes()
+
+
+def build_session_file_payloads(file_payloads):
+
+    TEMP_UPLOAD_ROOT.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    session_payloads = []
+
+    for item in file_payloads:
+        file_bytes = resolve_payload_bytes(item)
+        temp_path = TEMP_UPLOAD_ROOT / f"{item['hash']}_{item['name']}"
+        temp_path.write_bytes(file_bytes)
+        session_payloads.append(
+            {
+                "name": item["name"],
+                "hash": item["hash"],
+                "size_kb": round(len(file_bytes) / 1024, 1),
+                "temp_path": str(temp_path),
+            }
+        )
+
+    return session_payloads
 
 
 def get_pipeline_load_aliases(base_label):
@@ -205,7 +247,20 @@ def build_preview_dataframe(result_df):
     if result_df is None or result_df.empty:
         return None
 
-    return result_df.head(PREVIEW_ROWS).copy()
+    preview_df = result_df.head(PREVIEW_ROWS).copy()
+
+    for column_name in preview_df.columns:
+        if is_datetime64_any_dtype(preview_df[column_name]):
+            preview_df[column_name] = preview_df[
+                column_name
+            ].dt.strftime("%d/%m/%Y")
+
+    preview_df = preview_df.astype(object).where(
+        pd.notna(preview_df),
+        None,
+    )
+
+    return preview_df.to_dict(orient="records")
 
 
 def format_excel_report_dates(worksheet, result_df):
@@ -363,10 +418,11 @@ def validate_uploaded_files(
     validations = []
 
     for item in file_payloads:
+        file_bytes = resolve_payload_bytes(item)
         try:
             validation = cached_validate(
                 item["hash"],
-                item["bytes"],
+                file_bytes,
                 item["name"],
             )
         except Exception as exc:
@@ -377,7 +433,7 @@ def validate_uploaded_files(
             validation = ValidationResult(
                 file_name=item["name"],
                 file_hash=item["hash"],
-                file_size_kb=round(len(item["bytes"]) / 1024, 1),
+                file_size_kb=round(len(file_bytes) / 1024, 1),
                 is_valid=False,
                 pipeline_name=None,
                 errors=[f"Validation failed: {exc}"],
@@ -717,11 +773,11 @@ def process_uploaded_files(
     results = []
     total_files = len(file_payloads)
     total_bytes = sum(
-        len(item["bytes"])
+        len(resolve_payload_bytes(item))
         for item in file_payloads
     )
     largest_file_bytes = max(
-        (len(item["bytes"]) for item in file_payloads),
+        (len(resolve_payload_bytes(item)) for item in file_payloads),
         default=0,
     )
     effective_workers = worker_count
@@ -752,6 +808,7 @@ def process_uploaded_files(
         for item in file_payloads:
             file_index = len(futures)
             selected_base = None
+            file_bytes = resolve_payload_bytes(item)
 
             if manual_selection:
                 selected_base = manual_selection.get(
@@ -763,7 +820,7 @@ def process_uploaded_files(
                     process_file,
                     file_index,
                     item["name"],
-                    item["bytes"],
+                    file_bytes,
                     display_names,
                     selected_base,
                 )

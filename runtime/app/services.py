@@ -1,5 +1,6 @@
 from runtime.app.core.execution_manager import (
     build_status_dataframe,
+    build_session_file_payloads,
     file_hash,
     format_output_path,
     merge_results,
@@ -12,6 +13,7 @@ from runtime.app.core.history_manager import list_recent_history
 
 __all__ = [
     "build_status_dataframe",
+    "build_session_file_payloads",
     "file_hash",
     "format_output_path",
     "list_recent_history",
