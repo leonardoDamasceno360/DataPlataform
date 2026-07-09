@@ -11,6 +11,9 @@ $PyInstallerExe = Join-Path $ProjectRoot "runtime\.venv\Scripts\pyinstaller.exe"
 $SpecFile = Join-Path $ProjectRoot "packaging\pyinstaller\DataPlatform.spec"
 $DistDir = Join-Path $ProjectRoot "dist"
 $BuildDir = Join-Path $ProjectRoot "build"
+$ExePath = Join-Path $DistDir "DataPlatform.exe"
+$DeliveryDir = "C:\Users\LeonardoDamasceno\OneDrive - Dicon Contabilidade\RH - Compliance\8. Automações - Executáveis\DataPlatform"
+$DeliveryExePath = Join-Path $DeliveryDir "DataPlatform.exe"
 $InstallerScript = Join-Path $ProjectRoot "packaging\installer\DataPlatform.iss"
 $InnoCompiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 
@@ -43,6 +46,16 @@ if ($LASTEXITCODE -ne 0) {
     throw "Falha no build do PyInstaller."
 }
 
+if (-not (Test-Path $ExePath)) {
+    throw "Executavel nao encontrado apos o build: $ExePath"
+}
+
+if (-not (Test-Path $DeliveryDir)) {
+    New-Item -ItemType Directory -Path $DeliveryDir -Force | Out-Null
+}
+
+Copy-Item -Path $ExePath -Destination $DeliveryExePath -Force
+
 if ($BuildInstaller) {
     if (-not (Test-Path $InnoCompiler)) {
         throw "ISCC.exe nao encontrado. Instale o Inno Setup 6."
@@ -61,7 +74,8 @@ if ($BuildInstaller) {
 
 Write-Host ""
 Write-Host "Build concluido."
-Write-Host "Executavel: $DistDir\DataPlatform.exe"
+Write-Host "Executavel: $ExePath"
+Write-Host "Copia atualizada em: $DeliveryExePath"
 
 if ($BuildInstaller) {
     Write-Host "Instalador: $DistDir\installer\DataPlatform-Setup-$Version.exe"
