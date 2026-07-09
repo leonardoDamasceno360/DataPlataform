@@ -199,30 +199,34 @@ if retry_clicked:
 if not results and not file_payloads:
     render_empty_state()
 elif results:
-    tab_overview, tab_preview, tab_downloads, tab_logs, tab_history = st.tabs(
+    active_view = st.radio(
+        "Workspace section",
         [
             "Overview",
             "Preview",
             "Downloads",
             "Logs",
             "History",
-        ]
+        ],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="workspace_section",
     )
 
-    with tab_overview:
+    if active_view == "Overview":
         render_overview_tab(
             results,
             PIPELINE_DISPLAY_NAMES,
         )
 
-    with tab_preview:
+    elif active_view == "Preview":
         render_preview_tab(results)
 
-    with tab_downloads:
+    elif active_view == "Downloads":
         render_downloads_tab(results)
 
-    with tab_logs:
+    elif active_view == "Logs":
         render_logs_tab(results)
 
-    with tab_history:
+    else:
         render_history_tab()

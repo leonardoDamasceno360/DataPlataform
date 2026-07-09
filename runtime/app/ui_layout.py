@@ -101,24 +101,27 @@ def render_downloads_tab(results):
         return
 
     zip_buffer = io.BytesIO()
+    zip_available = True
 
-    with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-        for result in successful_results:
-            output_meta = result.get(
-                "OutputFiles",
-                [],
-            )[0]
-            output_path = Path(
-                output_meta["path"]
-            )
-
-            if output_path.exists():
-                zip_file.write(
-                    output_path,
-                    arcname=output_meta["file_name"],
+    try:
+        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+            for result in successful_results:
+                output_meta = result.get(
+                    "OutputFiles",
+                    [],
+                )[0]
+                output_path = Path(
+                    output_meta["path"]
                 )
 
-    zip_buffer.seek(0)
+                if output_path.exists():
+                    zip_file.write(
+                        output_path,
+                        arcname=output_meta["file_name"],
+                    )
+        zip_buffer.seek(0)
+    except OSError:
+        zip_available = False
 
     top_cols = st.columns([3.2, 1.0], vertical_alignment="center")
     with top_cols[0]:
@@ -129,9 +132,10 @@ def render_downloads_tab(results):
     with top_cols[1]:
         st.download_button(
             "Download ZIP",
-            zip_buffer,
+            zip_buffer if zip_available else b"",
             file_name=f"processed_{datetime.today().strftime('%Y-%m-%d')}.zip",
             key="download_zip_button",
+            disabled=not zip_available,
             use_container_width=True,
         )
 
@@ -175,11 +179,14 @@ def render_downloads_tab(results):
         output_path = Path(
             output_meta["path"]
         )
-        output_bytes = (
-            output_path.read_bytes()
-            if output_path.exists()
-            else b""
-        )
+        try:
+            output_bytes = (
+                output_path.read_bytes()
+                if output_path.exists()
+                else b""
+            )
+        except OSError:
+            output_bytes = b""
         cols[4].download_button(
             "Download",
             data=output_bytes,
