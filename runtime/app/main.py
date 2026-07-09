@@ -54,6 +54,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
 )
+logger = logging.getLogger("data_platform_main")
 
 
 def rerun_app():
@@ -65,168 +66,191 @@ def rerun_app():
     st.experimental_rerun()
 
 
-initialize_session_state()
+def run_app():
 
-theme_mode = get_effective_theme(
-    get_requested_theme()
-)
-inject_global_styles(theme_mode)
+    initialize_session_state()
 
-sidebar_state = render_sidebar(
-    get_requested_theme(),
-    theme_mode,
-    PIPELINE_DISPLAY_NAMES,
-)
+    theme_mode = get_effective_theme(
+        get_requested_theme()
+    )
+    inject_global_styles(theme_mode)
 
-st.session_state["ui_theme"] = sidebar_state[
-    "theme_selection"
-]
+    sidebar_state = render_sidebar(
+        get_requested_theme(),
+        theme_mode,
+        PIPELINE_DISPLAY_NAMES,
+    )
 
-if sidebar_state["clear_clicked"]:
-    safe_clear_session(rerun_app)
+    st.session_state["ui_theme"] = sidebar_state[
+        "theme_selection"
+    ]
 
-render_header(
-    APP_NAME,
-    PIPELINE_DISPLAY_NAMES,
-)
+    if sidebar_state["clear_clicked"]:
+        safe_clear_session(rerun_app)
 
-results = st.session_state.get(
-    "last_results",
-    [],
-)
-validations = st.session_state.get(
-    "validation_rows",
-    [],
-)
+    render_header(
+        APP_NAME,
+        PIPELINE_DISPLAY_NAMES,
+    )
 
-uploaded_files, file_payloads, run_clicked = render_upload_section()
-current_hashes = [
-    item["hash"]
-    for item in file_payloads
-]
-stored_hashes = [
-    item["hash"]
-    for item in st.session_state.get(
-        "last_file_payloads",
+    results = st.session_state.get(
+        "last_results",
         [],
     )
-]
+    validations = st.session_state.get(
+        "validation_rows",
+        [],
+    )
 
-if current_hashes != stored_hashes:
-    st.session_state["validation_rows"] = []
-    st.session_state["execution_logs"] = []
-    st.session_state["output_manifest"] = []
-    if file_payloads:
-        st.session_state["last_results"] = []
-
-validations = st.session_state.get(
-    "validation_rows",
-    [],
-)
-
-if run_clicked:
-    st.session_state["last_file_payloads"] = file_payloads
-    if not validations:
-        st.session_state["validation_rows"] = validate_uploaded_files(
-            file_payloads,
-            PIPELINE_DISPLAY_NAMES,
+    uploaded_files, file_payloads, run_clicked = render_upload_section()
+    current_hashes = [
+        item["hash"]
+        for item in file_payloads
+    ]
+    stored_hashes = [
+        item["hash"]
+        for item in st.session_state.get(
+            "last_file_payloads",
+            [],
         )
-    run_started = datetime.now()
-    st.session_state["last_results"] = process_uploaded_files(
-        file_payloads=file_payloads,
-        worker_count=sidebar_state["worker_count"],
-        display_names=PIPELINE_DISPLAY_NAMES,
-    )
-    st.session_state["execution_logs"] = [
-        result.get("LogLines", [])
-        for result in st.session_state["last_results"]
     ]
-    st.session_state["output_manifest"] = [
-        output
-        for result in st.session_state["last_results"]
-        for output in result.get("OutputFiles", [])
-    ]
-    run_finished = datetime.now()
-    st.session_state["last_run_at"] = run_finished.strftime(
-        "%Y-%m-%d %H:%M:%S"
+
+    if current_hashes != stored_hashes:
+        st.session_state["validation_rows"] = []
+        st.session_state["execution_logs"] = []
+        st.session_state["output_manifest"] = []
+        if file_payloads:
+            st.session_state["last_results"] = []
+
+    validations = st.session_state.get(
+        "validation_rows",
+        [],
     )
-    st.session_state["last_run_seconds"] = (
-        run_finished - run_started
-    ).total_seconds()
-    rerun_app()
 
-results = st.session_state.get(
-    "last_results",
-    [],
-)
+    if run_clicked:
+        logger.info(
+            "Run triggered with %s file(s)",
+            len(file_payloads),
+        )
+        st.session_state["last_file_payloads"] = file_payloads
+        if not validations:
+            st.session_state["validation_rows"] = validate_uploaded_files(
+                file_payloads,
+                PIPELINE_DISPLAY_NAMES,
+            )
+        run_started = datetime.now()
+        st.session_state["last_results"] = process_uploaded_files(
+            file_payloads=file_payloads,
+            worker_count=sidebar_state["worker_count"],
+            display_names=PIPELINE_DISPLAY_NAMES,
+        )
+        st.session_state["execution_logs"] = [
+            result.get("LogLines", [])
+            for result in st.session_state["last_results"]
+        ]
+        st.session_state["output_manifest"] = [
+            output
+            for result in st.session_state["last_results"]
+            for output in result.get("OutputFiles", [])
+        ]
+        run_finished = datetime.now()
+        st.session_state["last_run_at"] = run_finished.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        st.session_state["last_run_seconds"] = (
+            run_finished - run_started
+        ).total_seconds()
 
-retry_clicked, retry_payloads, retry_manual_selection = render_manual_recovery_section(
-    results,
-    st.session_state.get("last_file_payloads", []),
-    PIPELINE_DISPLAY_NAMES,
-)
-
-if retry_clicked:
-    retry_started = datetime.now()
-    retried_results = process_uploaded_files(
-        file_payloads=retry_payloads,
-        worker_count=sidebar_state["worker_count"],
-        display_names=PIPELINE_DISPLAY_NAMES,
-        manual_selection=retry_manual_selection,
+    results = st.session_state.get(
+        "last_results",
+        [],
     )
-    st.session_state["last_results"] = merge_results(
+
+    retry_clicked, retry_payloads, retry_manual_selection = render_manual_recovery_section(
         results,
-        retried_results,
-    )
-    st.session_state["execution_logs"] = [
-        result.get("LogLines", [])
-        for result in st.session_state["last_results"]
-    ]
-    st.session_state["output_manifest"] = [
-        output
-        for result in st.session_state["last_results"]
-        for output in result.get("OutputFiles", [])
-    ]
-    retry_finished = datetime.now()
-    st.session_state["last_run_at"] = retry_finished.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-    st.session_state["last_run_seconds"] = (
-        retry_finished - retry_started
-    ).total_seconds()
-    rerun_app()
-
-if not results and not file_payloads:
-    render_empty_state()
-elif results:
-    active_view = st.radio(
-        "Workspace section",
-        [
-            "Overview",
-            "Preview",
-            "Downloads",
-            "Logs",
-            "History",
-        ],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="workspace_section",
+        st.session_state.get("last_file_payloads", []),
+        PIPELINE_DISPLAY_NAMES,
     )
 
-    if active_view == "Overview":
-        render_overview_tab(
+    if retry_clicked:
+        logger.info(
+            "Manual retry triggered for %s file(s)",
+            len(retry_payloads),
+        )
+        retry_started = datetime.now()
+        retried_results = process_uploaded_files(
+            file_payloads=retry_payloads,
+            worker_count=sidebar_state["worker_count"],
+            display_names=PIPELINE_DISPLAY_NAMES,
+            manual_selection=retry_manual_selection,
+        )
+        st.session_state["last_results"] = merge_results(
             results,
-            PIPELINE_DISPLAY_NAMES,
+            retried_results,
+        )
+        st.session_state["execution_logs"] = [
+            result.get("LogLines", [])
+            for result in st.session_state["last_results"]
+        ]
+        st.session_state["output_manifest"] = [
+            output
+            for result in st.session_state["last_results"]
+            for output in result.get("OutputFiles", [])
+        ]
+        retry_finished = datetime.now()
+        st.session_state["last_run_at"] = retry_finished.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        st.session_state["last_run_seconds"] = (
+            retry_finished - retry_started
+        ).total_seconds()
+
+    results = st.session_state.get(
+        "last_results",
+        [],
+    )
+
+    if not results and not file_payloads:
+        render_empty_state()
+    elif results:
+        active_view = st.radio(
+            "Workspace section",
+            [
+                "Overview",
+                "Preview",
+                "Downloads",
+                "Logs",
+                "History",
+            ],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="workspace_section",
         )
 
-    elif active_view == "Preview":
-        render_preview_tab(results)
+        if active_view == "Overview":
+            render_overview_tab(
+                results,
+                PIPELINE_DISPLAY_NAMES,
+            )
 
-    elif active_view == "Downloads":
-        render_downloads_tab(results)
+        elif active_view == "Preview":
+            render_preview_tab(results)
 
-    elif active_view == "Logs":
-        render_logs_tab(results)
+        elif active_view == "Downloads":
+            render_downloads_tab(results)
 
-    else:
-        render_history_tab()
+        elif active_view == "Logs":
+            render_logs_tab(results)
+
+        else:
+            render_history_tab()
+
+
+try:
+    run_app()
+except Exception as exc:
+    logger.exception("Unhandled app failure")
+    st.error(
+        "The app hit an unexpected error during this interaction."
+    )
+    st.exception(exc)

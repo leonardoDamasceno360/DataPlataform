@@ -1,6 +1,7 @@
 import hashlib
 import io
 import logging
+import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -724,6 +725,9 @@ def process_uploaded_files(
         default=0,
     )
     effective_workers = worker_count
+
+    if os.name != "nt":
+        effective_workers = 1
 
     if total_bytes >= 25 * 1024 * 1024:
         effective_workers = min(
