@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 
 from runtime.core.schema_utils import (
@@ -161,8 +163,17 @@ def resolve_excel_engines(file_name):
     lowered = file_name.lower()
     engines = []
 
-    if lowered.endswith((".xlsx", ".xlsm", ".xlsb", ".xls")):
-        engines.extend(["calamine", "openpyxl"])
+    if lowered.endswith((".xlsx", ".xlsm")):
+        engines.append("openpyxl")
+
+        # Calamine can be useful as a local fallback, but it is avoided as the
+        # primary engine because native-extension crashes on Cloud/Linux do not
+        # surface as Python exceptions and lead to blank-screen app reboots.
+        if os.name == "nt":
+            engines.append("calamine")
+
+    elif lowered.endswith((".xlsb", ".xls")):
+        engines.append("calamine")
 
     if not engines:
         engines.append(None)
