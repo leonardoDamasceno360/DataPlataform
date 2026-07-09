@@ -1,4 +1,5 @@
 import json
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +17,12 @@ FALLBACK_EXECUTION_HISTORY_FILE = (
     / "logs"
     / "execution_history.jsonl"
 )
+TEMP_RUNTIME_ROOT = Path(tempfile.gettempdir()) / "dataplatform_runtime"
+TEMP_EXECUTION_HISTORY_FILE = (
+    TEMP_RUNTIME_ROOT
+    / "logs"
+    / "execution_history.jsonl"
+)
 
 
 def _ensure_parent(path_obj: Path):
@@ -29,6 +36,7 @@ def append_history_entry(entry: dict):
     candidate_files = [
         EXECUTION_HISTORY_FILE,
         FALLBACK_EXECUTION_HISTORY_FILE,
+        TEMP_EXECUTION_HISTORY_FILE,
     ]
     payload = json.dumps(
         entry,
@@ -81,6 +89,11 @@ def load_history_entries(limit=None):
     if not rows:
         rows = _load_entries_from_path(
             FALLBACK_EXECUTION_HISTORY_FILE
+        )
+
+    if not rows:
+        rows = _load_entries_from_path(
+            TEMP_EXECUTION_HISTORY_FILE
         )
 
     rows.sort(

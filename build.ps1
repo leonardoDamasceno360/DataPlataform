@@ -12,7 +12,8 @@ $SpecFile = Join-Path $ProjectRoot "packaging\pyinstaller\DataPlatform.spec"
 $DistDir = Join-Path $ProjectRoot "dist"
 $BuildDir = Join-Path $ProjectRoot "build"
 $ExePath = Join-Path $DistDir "DataPlatform.exe"
-$DeliveryDir = "C:\Users\LeonardoDamasceno\OneDrive - Dicon Contabilidade\RH - Compliance\8. Automações - Executáveis\DataPlatform"
+$DeliveryRoot = "C:\Users\LeonardoDamasceno\OneDrive - Dicon Contabilidade\RH - Compliance\867A9~1.AUT"
+$DeliveryDir = Join-Path $DeliveryRoot "DataPlatform"
 $DeliveryExePath = Join-Path $DeliveryDir "DataPlatform.exe"
 $InstallerScript = Join-Path $ProjectRoot "packaging\installer\DataPlatform.iss"
 $InnoCompiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -23,6 +24,10 @@ if (-not (Test-Path $PythonExe)) {
 
 if (-not (Test-Path $PyInstallerExe)) {
     & $PythonExe -m pip install pyinstaller
+}
+
+if (-not (Test-Path $DeliveryRoot)) {
+    throw "Pasta de entrega nao encontrada: $DeliveryRoot"
 }
 
 Get-Process DataPlatform -ErrorAction SilentlyContinue | Stop-Process -Force

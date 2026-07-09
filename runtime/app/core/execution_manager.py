@@ -1,6 +1,7 @@
 import hashlib
 import io
 import logging
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -43,6 +44,9 @@ logger = logging.getLogger("data_platform")
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FALLBACK_LOG_ROOT = PROJECT_ROOT / "runtime_data" / "logs"
 FALLBACK_HISTORY_ROOT = PROJECT_ROOT / "runtime_data" / "history"
+TEMP_RUNTIME_ROOT = Path(tempfile.gettempdir()) / "dataplatform_runtime"
+TEMP_LOG_ROOT = TEMP_RUNTIME_ROOT / "logs"
+TEMP_HISTORY_ROOT = TEMP_RUNTIME_ROOT / "history"
 
 
 def pipeline_label(base_name, display_names):
@@ -164,6 +168,7 @@ def save_history(file_name, buffer):
     candidate_dirs = [
         HISTORY_ROOT / history_day,
         FALLBACK_HISTORY_ROOT / history_day,
+        TEMP_HISTORY_ROOT / history_day,
     ]
     file_bytes = buffer.getvalue()
     last_error = None
@@ -357,11 +362,27 @@ def validate_uploaded_files(
     validations = []
 
     for item in file_payloads:
-        validation = cached_validate(
-            item["hash"],
-            item["bytes"],
-            item["name"],
-        )
+        try:
+            validation = cached_validate(
+                item["hash"],
+                item["bytes"],
+                item["name"],
+            )
+        except Exception as exc:
+            logger.exception(
+                "Validation failed for %s",
+                item["name"],
+            )
+            validation = ValidationResult(
+                file_name=item["name"],
+                file_hash=item["hash"],
+                file_size_kb=round(len(item["bytes"]) / 1024, 1),
+                is_valid=False,
+                pipeline_name=None,
+                errors=[f"Validation failed: {exc}"],
+                detected_columns=[],
+                action_label="Select pipeline",
+            ).to_dict()
         validation["pipeline_label"] = pipeline_label(
             validation.get("pipeline_name") or "Unidentified",
             display_names,
@@ -381,6 +402,7 @@ def _write_execution_log(file_hash_key, lines):
     candidate_roots = [
         LOG_ROOT,
         FALLBACK_LOG_ROOT,
+        TEMP_LOG_ROOT,
     ]
     last_error = None
 
@@ -564,9 +586,15 @@ def process_file(
                 )
             ],
         )
-        append_history_entry(
-            pipeline_result.to_dict()
-        )
+        try:
+            append_history_entry(
+                pipeline_result.to_dict()
+            )
+        except Exception:
+            logger.exception(
+                "History append failed for %s",
+                file_name,
+            )
 
         del input_df
         del result_df
@@ -625,23 +653,37 @@ def process_file(
             f"Started at: {started_at.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Finished at: {finished_at.strftime('%Y-%m-%d %H:%M:%S')}",
         ]
-        log_path = _write_execution_log(
-            hash_key or file_name,
-            log_lines,
-        )
-        append_history_entry(
-            PipelineResult(
-                pipeline_name=display_base,
-                status="Error",
-                errors=[str(exc)],
-                execution_time=duration,
-                started_at=started_at.strftime("%Y-%m-%d %H:%M:%S"),
-                finished_at=finished_at.strftime("%Y-%m-%d %H:%M:%S"),
-                input_file=file_name,
-                file_hash=hash_key or "",
-                log_lines=log_lines,
-            ).to_dict()
-        )
+        try:
+            log_path = _write_execution_log(
+                hash_key or file_name,
+                log_lines,
+            )
+        except Exception:
+            logger.exception(
+                "Execution log write failed for %s",
+                file_name,
+            )
+            log_path = Path()
+
+        try:
+            append_history_entry(
+                PipelineResult(
+                    pipeline_name=display_base,
+                    status="Error",
+                    errors=[str(exc)],
+                    execution_time=duration,
+                    started_at=started_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    finished_at=finished_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    input_file=file_name,
+                    file_hash=hash_key or "",
+                    log_lines=log_lines,
+                ).to_dict()
+            )
+        except Exception:
+            logger.exception(
+                "History append failed after processing error for %s",
+                file_name,
+            )
 
         return {
             "Hash": hash_key,
@@ -726,7 +768,33 @@ def process_uploaded_files(
         completed = 0
 
         for future in as_completed(futures):
-            results.append(future.result())
+            try:
+                results.append(future.result())
+            except Exception as exc:
+                logger.exception(
+                    "Unhandled worker failure during batch execution"
+                )
+                results.append(
+                    {
+                        "Hash": None,
+                        "Order": completed,
+                        "Base": "Unidentified",
+                        "DisplayBase": "Unidentified",
+                        "Arquivo": "Unknown file",
+                        "Status": "Error",
+                        "Rows": 0,
+                        "ExecutionTime": 0.0,
+                        "StartedAt": "",
+                        "FinishedAt": "",
+                        "PreviewData": None,
+                        "Output": None,
+                        "OutputFiles": [],
+                        "ErrorMessage": f"Unhandled worker failure: {exc}",
+                        "Log": f"Unhandled worker failure: {exc}",
+                        "LogLines": [f"Unhandled worker failure: {exc}"],
+                        "LogPath": "",
+                    }
+                )
             completed += 1
             progress.progress(
                 completed / total_files,
