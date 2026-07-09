@@ -398,7 +398,6 @@ def load_payload(
     )
 
 
-@st.cache_data(show_spinner=False)
 def cached_detect(
     file_hash_key,
     file_name,
@@ -624,9 +623,6 @@ def process_file(
         )
 
         rows = len(result_df)
-        preview_df = build_preview_dataframe(
-            result_df
-        )
         buffer = io.BytesIO()
         display_base = pipeline_label(
             detected_base,
@@ -730,7 +726,6 @@ def process_file(
             "ExecutionTime": duration,
             "StartedAt": pipeline_result.started_at,
             "FinishedAt": pipeline_result.finished_at,
-            "PreviewData": preview_df,
             "Output": output_name,
             "OutputFiles": [
                 output.to_dict()
@@ -744,7 +739,6 @@ def process_file(
                     "Success",
                 ]
             ),
-            "LogLines": log_lines,
             "LogPath": format_output_path(log_path),
         }
 
@@ -815,12 +809,10 @@ def process_file(
             "ExecutionTime": duration,
             "StartedAt": started_at.strftime("%Y-%m-%d %H:%M:%S"),
             "FinishedAt": finished_at.strftime("%Y-%m-%d %H:%M:%S"),
-            "PreviewData": None,
             "Output": None,
             "OutputFiles": [],
             "ErrorMessage": str(exc),
             "Log": f"{file_name} | Error: {exc}",
-            "LogLines": log_lines,
             "LogPath": format_output_path(log_path),
         }
 
@@ -865,13 +857,8 @@ def process_uploaded_files(
     )
     status_placeholder = st.empty()
 
-    with ThreadPoolExecutor(
-        max_workers=effective_workers
-    ) as executor:
-        futures = []
-
-        for item in file_payloads:
-            file_index = len(futures)
+    if effective_workers == 1:
+        for file_index, item in enumerate(file_payloads):
             selected_base = None
 
             if manual_selection:
@@ -879,47 +866,40 @@ def process_uploaded_files(
                     item["name"]
                 )
 
-            futures.append(
-                executor.submit(
-                    process_file,
-                    file_index,
-                    item,
-                    display_names,
-                    selected_base,
-                )
-            )
-
-        completed = 0
-
-        for future in as_completed(futures):
             try:
-                results.append(future.result())
+                results.append(
+                    process_file(
+                        file_index,
+                        item,
+                        display_names,
+                        selected_base,
+                    )
+                )
             except Exception as exc:
                 logger.exception(
-                    "Unhandled worker failure during batch execution"
+                    "Unhandled single-worker failure during batch execution"
                 )
                 results.append(
                     {
-                        "Hash": None,
-                        "Order": completed,
+                        "Hash": item.get("hash"),
+                        "Order": file_index,
                         "Base": "Unidentified",
                         "DisplayBase": "Unidentified",
-                        "Arquivo": "Unknown file",
+                        "Arquivo": item.get("name", "Unknown file"),
                         "Status": "Error",
                         "Rows": 0,
                         "ExecutionTime": 0.0,
                         "StartedAt": "",
                         "FinishedAt": "",
-                        "PreviewData": None,
                         "Output": None,
                         "OutputFiles": [],
                         "ErrorMessage": f"Unhandled worker failure: {exc}",
                         "Log": f"Unhandled worker failure: {exc}",
-                        "LogLines": [f"Unhandled worker failure: {exc}"],
                         "LogPath": "",
                     }
                 )
-            completed += 1
+
+            completed = file_index + 1
             progress.progress(
                 completed / total_files,
                 text=(
@@ -930,6 +910,70 @@ def process_uploaded_files(
             status_placeholder.caption(
                 f"Batch execution progress: {completed}/{total_files}"
             )
+    else:
+        with ThreadPoolExecutor(
+            max_workers=effective_workers
+        ) as executor:
+            futures = []
+
+            for item in file_payloads:
+                file_index = len(futures)
+                selected_base = None
+
+                if manual_selection:
+                    selected_base = manual_selection.get(
+                        item["name"]
+                    )
+
+                futures.append(
+                    executor.submit(
+                        process_file,
+                        file_index,
+                        item,
+                        display_names,
+                        selected_base,
+                    )
+                )
+
+            completed = 0
+
+            for future in as_completed(futures):
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    logger.exception(
+                        "Unhandled worker failure during batch execution"
+                    )
+                    results.append(
+                        {
+                            "Hash": None,
+                            "Order": completed,
+                            "Base": "Unidentified",
+                            "DisplayBase": "Unidentified",
+                            "Arquivo": "Unknown file",
+                            "Status": "Error",
+                            "Rows": 0,
+                            "ExecutionTime": 0.0,
+                            "StartedAt": "",
+                            "FinishedAt": "",
+                            "Output": None,
+                            "OutputFiles": [],
+                            "ErrorMessage": f"Unhandled worker failure: {exc}",
+                            "Log": f"Unhandled worker failure: {exc}",
+                            "LogPath": "",
+                        }
+                    )
+                completed += 1
+                progress.progress(
+                    completed / total_files,
+                    text=(
+                        f"Processed {completed} "
+                        f"of {total_files} files with {effective_workers} worker(s)..."
+                    ),
+                )
+                status_placeholder.caption(
+                    f"Batch execution progress: {completed}/{total_files}"
+                )
 
     progress.empty()
     status_placeholder.empty()

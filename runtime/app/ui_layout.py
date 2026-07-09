@@ -7,12 +7,52 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from runtime.app.config import APP_HOME, HISTORY_ROOT, OUTPUT_ROOT
+from runtime.app.config import APP_HOME, HISTORY_ROOT, OUTPUT_ROOT, PREVIEW_ROWS
 from runtime.app.services import (
     build_status_dataframe,
     format_output_path,
     list_recent_history,
 )
+
+
+def _load_preview_frame(result):
+
+    output_files = result.get("OutputFiles", [])
+
+    if not output_files:
+        return None
+
+    output_path = Path(output_files[0]["path"])
+
+    if not output_path.exists():
+        return None
+
+    preview_df = pd.read_excel(
+        output_path,
+        sheet_name=0,
+        nrows=PREVIEW_ROWS,
+    )
+
+    for column_name in preview_df.columns:
+        if pd.api.types.is_datetime64_any_dtype(preview_df[column_name]):
+            preview_df[column_name] = preview_df[column_name].dt.strftime("%d/%m/%Y")
+
+    return preview_df
+
+
+def _read_result_log(result):
+
+    log_path = result.get("LogPath")
+
+    if log_path:
+        try:
+            log_file = Path(log_path)
+            if log_file.exists():
+                return log_file.read_text(encoding="utf-8")
+        except OSError:
+            pass
+
+    return result.get("Log", "")
 
 
 def render_empty_state():
@@ -58,7 +98,8 @@ def render_preview_tab(results):
     preview_results = [
         result
         for result in results
-        if result["PreviewData"] is not None
+        if result["Status"] == "Success"
+        and result.get("OutputFiles")
     ]
 
     if not preview_results:
@@ -70,9 +111,18 @@ def render_preview_tab(results):
             f"{result['DisplayBase']} | {result['Arquivo']}",
             expanded=False,
         ):
-            preview_rows = result["PreviewData"]
+            try:
+                preview_df = _load_preview_frame(result)
+            except Exception as exc:
+                st.warning(f"Preview unavailable: {exc}")
+                continue
+
+            if preview_df is None or preview_df.empty:
+                st.info("Preview unavailable for this output.")
+                continue
+
             st.dataframe(
-                pd.DataFrame(preview_rows),
+                preview_df,
                 use_container_width=True,
                 hide_index=True,
             )
@@ -213,15 +263,15 @@ def render_logs_tab(results):
         unsafe_allow_html=True,
     )
 
-    combined_lines = []
-
-    for result in results:
-        combined_lines.extend(
-            result.get("LogLines", [result["Log"]])
+    log_text = "\n\n".join(
+        filter(
+            None,
+            (
+                _read_result_log(result)
+                for result in results
+            ),
         )
-        combined_lines.append("")
-
-    log_text = "\n".join(combined_lines).strip()
+    ).strip()
 
     st.code(
         log_text,

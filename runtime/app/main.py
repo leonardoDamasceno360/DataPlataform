@@ -17,7 +17,6 @@ from runtime.app.core.execution_manager import (
     build_session_file_payloads,
     merge_results,
     process_uploaded_files,
-    validate_uploaded_files,
 )
 from runtime.app.core.session_manager import (
     initialize_session_state,
@@ -98,10 +97,6 @@ def run_app():
         "last_results",
         [],
     )
-    validations = st.session_state.get(
-        "validation_rows",
-        [],
-    )
 
     uploaded_files, file_payloads, run_clicked = render_upload_section()
     current_hashes = [
@@ -123,11 +118,6 @@ def run_app():
         if file_payloads:
             st.session_state["last_results"] = []
 
-    validations = st.session_state.get(
-        "validation_rows",
-        [],
-    )
-
     if run_clicked:
         logger.info(
             "Run triggered with %s file(s)",
@@ -136,11 +126,7 @@ def run_app():
         st.session_state["last_file_payloads"] = build_session_file_payloads(
             file_payloads
         )
-        if not validations:
-            st.session_state["validation_rows"] = validate_uploaded_files(
-                file_payloads,
-                PIPELINE_DISPLAY_NAMES,
-            )
+        st.session_state["validation_rows"] = []
         run_started = datetime.now()
         st.session_state["last_results"] = process_uploaded_files(
             file_payloads=file_payloads,
