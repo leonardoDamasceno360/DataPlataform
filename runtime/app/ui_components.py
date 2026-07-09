@@ -3,7 +3,10 @@ import html
 import streamlit as st
 
 from runtime.app.config import LOGO_VARIANTS, MAX_WORKERS, PIPELINE_ORDER
-from runtime.app.services import file_hash, pipeline_label
+from runtime.app.services import (
+    pipeline_label,
+    prepare_uploaded_file_payloads,
+)
 
 
 def render_logo(theme_mode):
@@ -134,18 +137,9 @@ def render_upload_section():
     file_payloads = []
 
     if uploaded_files:
-        for file in uploaded_files:
-            file_bytes = file.getvalue()
-            file_payloads.append(
-                {
-                    "name": file.name,
-                    "bytes": file_bytes,
-                    "hash": file_hash(
-                        file_bytes,
-                        file.name,
-                    ),
-                }
-            )
+        file_payloads = prepare_uploaded_file_payloads(
+            uploaded_files
+        )
 
     with action_col:
         run_clicked = st.button(

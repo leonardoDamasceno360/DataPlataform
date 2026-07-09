@@ -89,6 +89,53 @@ def build_file_object(file_bytes, file_name):
     return file_like
 
 
+def _safe_upload_name(file_name):
+
+    return Path(file_name).name.replace(
+        os.sep,
+        "_",
+    )
+
+
+def prepare_uploaded_file_payloads(uploaded_files):
+
+    TEMP_UPLOAD_ROOT.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    payloads = []
+
+    for uploaded_file in uploaded_files:
+        file_name = uploaded_file.name
+        file_buffer = uploaded_file.getbuffer()
+        hash_key = file_hash(
+            file_buffer,
+            file_name,
+        )
+        size_bytes = len(file_buffer)
+        temp_path = TEMP_UPLOAD_ROOT / (
+            f"{hash_key}_{_safe_upload_name(file_name)}"
+        )
+
+        if (
+            not temp_path.exists()
+            or temp_path.stat().st_size != size_bytes
+        ):
+            temp_path.write_bytes(file_buffer)
+
+        payloads.append(
+            {
+                "name": file_name,
+                "hash": hash_key,
+                "size_bytes": size_bytes,
+                "size_kb": round(size_bytes / 1024, 1),
+                "temp_path": str(temp_path),
+            }
+        )
+
+    return payloads
+
+
 def resolve_payload_bytes(file_payload):
 
     file_bytes = file_payload.get("bytes")
@@ -115,13 +162,33 @@ def build_session_file_payloads(file_payloads):
     session_payloads = []
 
     for item in file_payloads:
+        if item.get("temp_path") and item.get(
+            "size_bytes"
+        ) is not None:
+            session_payloads.append(
+                {
+                    "name": item["name"],
+                    "hash": item["hash"],
+                    "size_bytes": item["size_bytes"],
+                    "size_kb": item.get(
+                        "size_kb",
+                        round(item["size_bytes"] / 1024, 1),
+                    ),
+                    "temp_path": item["temp_path"],
+                }
+            )
+            continue
+
         file_bytes = resolve_payload_bytes(item)
-        temp_path = TEMP_UPLOAD_ROOT / f"{item['hash']}_{item['name']}"
+        temp_path = TEMP_UPLOAD_ROOT / (
+            f"{item['hash']}_{_safe_upload_name(item['name'])}"
+        )
         temp_path.write_bytes(file_bytes)
         session_payloads.append(
             {
                 "name": item["name"],
                 "hash": item["hash"],
+                "size_bytes": len(file_bytes),
                 "size_kb": round(len(file_bytes) / 1024, 1),
                 "temp_path": str(temp_path),
             }
@@ -308,17 +375,24 @@ def format_output_path(path_obj):
     return str(path_obj).replace("\\", "/")
 
 
-def cached_load(
-    file_hash_key,
-    file_bytes,
-    file_name,
+def load_payload(
+    file_payload,
     selected_aliases=None,
 ):
 
+    temp_path = file_payload.get("temp_path")
+
+    if temp_path:
+        with Path(temp_path).open("rb") as handle:
+            return load_file(
+                handle,
+                selected_aliases=selected_aliases,
+            )
+
     return load_file(
         build_file_object(
-            file_bytes,
-            file_name,
+            resolve_payload_bytes(file_payload),
+            file_payload["name"],
         ),
         selected_aliases=selected_aliases,
     )
@@ -335,29 +409,26 @@ def cached_detect(
 
 def cached_validate(
     file_hash_key,
-    file_bytes,
-    file_name,
+    file_payload,
 ):
 
-    input_df = cached_load(
-        file_hash_key,
-        file_bytes,
-        file_name,
+    input_df = load_payload(
+        file_payload,
         None,
     )
     detected_base = detect_automation(
         input_df,
-        file_name,
+        file_payload["name"],
     ) or cached_detect(
         file_hash_key,
-        file_name,
+        file_payload["name"],
     )
 
     if not detected_base:
         return ValidationResult(
-            file_name=file_name,
+            file_name=file_payload["name"],
             file_hash=file_hash_key,
-            file_size_kb=round(len(file_bytes) / 1024, 1),
+            file_size_kb=file_payload.get("size_kb", 0.0),
             is_valid=False,
             pipeline_name=None,
             errors=["Automatic pipeline detection failed."],
@@ -383,9 +454,9 @@ def cached_validate(
         )
 
     return ValidationResult(
-        file_name=file_name,
+        file_name=file_payload["name"],
         file_hash=file_hash_key,
-        file_size_kb=round(len(file_bytes) / 1024, 1),
+        file_size_kb=file_payload.get("size_kb", 0.0),
         is_valid=is_valid,
         pipeline_name=detected_base,
         errors=errors,
@@ -418,12 +489,10 @@ def validate_uploaded_files(
     validations = []
 
     for item in file_payloads:
-        file_bytes = resolve_payload_bytes(item)
         try:
             validation = cached_validate(
                 item["hash"],
-                file_bytes,
-                item["name"],
+                item,
             )
         except Exception as exc:
             logger.exception(
@@ -433,7 +502,7 @@ def validate_uploaded_files(
             validation = ValidationResult(
                 file_name=item["name"],
                 file_hash=item["hash"],
-                file_size_kb=round(len(file_bytes) / 1024, 1),
+                file_size_kb=item.get("size_kb", 0.0),
                 is_valid=False,
                 pipeline_name=None,
                 errors=[f"Validation failed: {exc}"],
@@ -491,8 +560,7 @@ def _write_execution_log(file_hash_key, lines):
 
 def process_file(
     file_index,
-    file_name,
-    file_bytes,
+    file_payload,
     display_names,
     selected_base=None,
 ):
@@ -500,6 +568,7 @@ def process_file(
     hash_key = None
     started_at = datetime.now()
     execution_start = perf_counter()
+    file_name = file_payload["name"]
 
     try:
         logger.info(
@@ -507,26 +576,19 @@ def process_file(
             file_name,
         )
 
-        hash_key = file_hash(
-            file_bytes,
-            file_name,
-        )
+        hash_key = file_payload["hash"]
         if selected_base:
             detected_base = selected_base
             selected_aliases = get_pipeline_load_aliases(
                 detected_base
             )
-            input_df = cached_load(
-                hash_key,
-                file_bytes,
-                file_name,
+            input_df = load_payload(
+                file_payload,
                 selected_aliases,
             )
         else:
-            input_df = cached_load(
-                hash_key,
-                file_bytes,
-                file_name,
+            input_df = load_payload(
+                file_payload,
                 None,
             )
             detected_base = detect_automation(
@@ -773,11 +835,14 @@ def process_uploaded_files(
     results = []
     total_files = len(file_payloads)
     total_bytes = sum(
-        len(resolve_payload_bytes(item))
+        item.get("size_bytes", 0)
         for item in file_payloads
     )
     largest_file_bytes = max(
-        (len(resolve_payload_bytes(item)) for item in file_payloads),
+        (
+            item.get("size_bytes", 0)
+            for item in file_payloads
+        ),
         default=0,
     )
     effective_workers = worker_count
@@ -808,7 +873,6 @@ def process_uploaded_files(
         for item in file_payloads:
             file_index = len(futures)
             selected_base = None
-            file_bytes = resolve_payload_bytes(item)
 
             if manual_selection:
                 selected_base = manual_selection.get(
@@ -819,8 +883,7 @@ def process_uploaded_files(
                 executor.submit(
                     process_file,
                     file_index,
-                    item["name"],
-                    file_bytes,
+                    item,
                     display_names,
                     selected_base,
                 )
