@@ -3,6 +3,7 @@ import re
 import pandas as pd
 
 from runtime.core.schema_utils import (
+    find_column,
     normalize_text,
     select_and_rename_columns,
     to_date_series,
@@ -13,7 +14,7 @@ from runtime.core.schema_utils import (
 
 class OT:
 
-    COLUMN_SPECS = [
+    COMMON_COLUMN_SPECS = [
         ("Id", ["ID", "Id"]),
         ("Date", ["DATE", "Date"]),
         ("Type of day", ["Type of Day", "Type of day"]),
@@ -29,15 +30,24 @@ class OT:
             "Ot classification",
             ["OT Classification", "Ot Classification"],
         ),
+    ]
+
+    NORMAL_COMPLIANCE_ALIASES = [
+        "OT Hours Compliance Classification",
+        "Ot Hours Compliance Classification",
+    ]
+
+    MN1_COMPLIANCE_ALIASES = [
+        "OT Hours Compliance MN1",
+        "Ot Hours Compliance MN1",
+    ]
+
+    COLUMN_SPECS = COMMON_COLUMN_SPECS + [
         (
             "Ot hours compliance classification",
-            [
-                "OT Hours Compliance Classification",
-                "Ot Hours Compliance Classification",
-                "OT Hours Compliance MN1",
-                "Ot Hours Compliance MN1",
-                "OT Hours Compliance",
-            ],
+            NORMAL_COMPLIANCE_ALIASES
+            + MN1_COMPLIANCE_ALIASES
+            + ["OT Hours Compliance"],
         ),
     ]
 
@@ -45,8 +55,12 @@ class OT:
 
         result = select_and_rename_columns(
             df,
-            self.COLUMN_SPECS,
+            self.COMMON_COLUMN_SPECS,
         )
+        compliance_source = self._resolve_compliance_source(df)
+        result["Ot hours compliance classification"] = df[
+            compliance_source
+        ].apply(self._normalize_compliance_label)
         result["Id"] = to_integer_series(
             result["Id"]
         )
@@ -60,9 +74,6 @@ class OT:
             self._build_ot_classification,
             axis=1,
         )
-        result["Ot hours compliance classification"] = result[
-            "Ot hours compliance classification"
-        ].apply(self._normalize_compliance_label)
         result["Compliance as per MN1"] = result.apply(
             self._build_compliance_status,
             axis=1,
@@ -70,7 +81,46 @@ class OT:
         result["Request Status"] = result[
             "Last ot request status"
         ].apply(self._build_request_status)
-        return result
+        final_columns = [
+            "Id",
+            "Date",
+            "Type of day",
+            "Last ot request status",
+            "Total ot hours done",
+            "Ot classification",
+            "Ot hours compliance classification",
+            "Compliance as per MN1",
+            "Request Status",
+        ]
+        return result[final_columns]
+
+    @classmethod
+    def _resolve_compliance_source(cls, df):
+
+        normal_source = find_column(
+            df,
+            cls.NORMAL_COMPLIANCE_ALIASES,
+        )
+        if normal_source:
+            return normal_source
+
+        mn1_source = find_column(
+            df,
+            cls.MN1_COMPLIANCE_ALIASES,
+        )
+        if mn1_source:
+            return mn1_source
+
+        fallback_source = find_column(
+            df,
+            ["OT Hours Compliance"],
+        )
+        if fallback_source:
+            return fallback_source
+
+        raise ValueError(
+            "Required column not found: Ot hours compliance classification"
+        )
 
     @staticmethod
     def _parse_ot_hours(value):
@@ -185,23 +235,29 @@ class OT:
     @classmethod
     def _build_compliance_status(cls, row):
 
-        current_value = row.get(
-            "Ot hours compliance classification"
-        )
         day_type = normalize_text(row.get("Type of day", ""))
         ot_hours = cls._parse_ot_hours(
             row.get("Total ot hours done")
         )
 
-        if day_type == "regular day" and ot_hours is not None and ot_hours > 4:
-            return "Non-Compliant"
-
-        if pd.isna(current_value):
+        if ot_hours is None:
             return ""
 
-        return cls._normalize_compliance_label(
-            current_value
-        )
+        if day_type == "regular day":
+            return (
+                "Non-Compliant"
+                if ot_hours > 4
+                else "Compliant"
+            )
+
+        if day_type in ("weekend", "holiday"):
+            return (
+                "Non-Compliant"
+                if ot_hours > 8
+                else "Compliant"
+            )
+
+        return ""
 
     @staticmethod
     def _normalize_compliance_label(value):
